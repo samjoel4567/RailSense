@@ -2,15 +2,30 @@ import React, { useState, useEffect } from 'react';
 
 export default function Navbar({ currentPage = 'home', onNavigate }) {
   const [scrolled, setScrolled] = useState(false);
+  const [visibleOnHome, setVisibleOnHome] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const isHome = currentPage === 'home';
 
   useEffect(() => {
     const handleScroll = () => {
-      setScrolled(window.scrollY > 15);
+      const scrollY = window.scrollY;
+      setScrolled(scrollY > 20);
+
+      // On home page, reveal the navbar once user scrolls past the top cinematic intro threshold
+      if (isHome) {
+        // approx 40% of viewport height or 280px
+        const threshold = Math.min(window.innerHeight * 0.45, 320);
+        setVisibleOnHome(scrollY > threshold);
+      } else {
+        setVisibleOnHome(true);
+      }
     };
-    window.addEventListener('scroll', handleScroll);
+
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [isHome]);
 
   const handleNavClick = (page, hash) => {
     setMenuOpen(false);
@@ -25,15 +40,21 @@ export default function Navbar({ currentPage = 'home', onNavigate }) {
     }
   };
 
+  // Determine if the navbar should be physically visible
+  const isNavVisible = !isHome || visibleOnHome;
+
   return (
-    <header className={`nav-header ${scrolled ? 'is-scrolled' : ''}`}>
+    <header 
+      className={`nav-header ${scrolled ? 'is-scrolled' : ''} ${!isNavVisible ? 'is-hidden-intro' : 'is-visible-sticky'}`}
+      aria-hidden={!isNavVisible}
+    >
       <div className="nav-container">
         
         {/* Minimal Swiss Inspired Brand Logo */}
         <a 
           href="#home" 
           className="nav-brand" 
-          aria-label="RAIL//AI Home"
+          aria-label="RAIL//SENSE-AI"
           onClick={(e) => {
             e.preventDefault();
             handleNavClick('home');
@@ -41,15 +62,15 @@ export default function Navbar({ currentPage = 'home', onNavigate }) {
         >
           <div className="brand-symbol">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-              <line x1="5" y1="3" x2="5" y2="21" stroke="#0F172A" strokeWidth="2.5" strokeLinecap="round" />
-              <line x1="19" y1="3" x2="19" y2="21" stroke="#0F172A" strokeWidth="2.5" strokeLinecap="round" />
-              <line x1="2" y1="8" x2="22" y2="8" stroke="#E11D48" strokeWidth="2" strokeLinecap="round" />
-              <line x1="2" y1="16" x2="22" y2="16" stroke="#94A3B8" strokeWidth="1.5" strokeLinecap="round" />
+              <line x1="4" y1="4" x2="4" y2="20" stroke="#0F172A" strokeWidth="2.5" strokeLinecap="round" />
+              <line x1="20" y1="4" x2="20" y2="20" stroke="#0F172A" strokeWidth="2.5" strokeLinecap="round" />
+              <line x1="1" y1="9" x2="23" y2="9" stroke="#E11D48" strokeWidth="2" strokeLinecap="round" />
+              <line x1="1" y1="15" x2="23" y2="15" stroke="#94A3B8" strokeWidth="1.5" strokeLinecap="round" />
             </svg>
           </div>
           <div className="brand-text-group">
-            <span className="brand-name">RAIL<span className="brand-slash">/</span>AI</span>
-            <span className="brand-system-tag font-mono">v2.4</span>
+            <span className="brand-name">RAIL<span className="brand-slash">//</span>AI</span>
+            <span className="brand-system-tag font-mono">v2.4 SIL-4</span>
           </div>
         </a>
 
@@ -63,10 +84,10 @@ export default function Navbar({ currentPage = 'home', onNavigate }) {
           </button>
 
           <button 
-            className={`nav-link ${currentPage === 'simulator' ? 'is-active-nav' : ''}`}
-            onClick={() => handleNavClick('simulator')}
+            className={`nav-link ${currentPage === 'station-master' ? 'is-active-nav' : ''}`}
+            onClick={() => handleNavClick('station-master')}
           >
-            <span>SIMULATOR</span>
+            <span>STATION MASTER</span>
           </button>
 
           <button 
@@ -77,13 +98,6 @@ export default function Navbar({ currentPage = 'home', onNavigate }) {
           </button>
 
           <button 
-            className={`nav-link ${currentPage === 'station-master' ? 'is-active-nav' : ''}`}
-            onClick={() => handleNavClick('station-master')}
-          >
-            <span>STATION MASTER</span>
-          </button>
-
-          <button 
             className={`nav-link ${currentPage === 'loco-pilot' ? 'is-active-nav' : ''}`}
             onClick={() => handleNavClick('loco-pilot')}
           >
@@ -91,34 +105,18 @@ export default function Navbar({ currentPage = 'home', onNavigate }) {
           </button>
 
           <button 
-            className="nav-link" 
-            onClick={() => handleNavClick('home', '#intelligence')}
+            className={`nav-link ${currentPage === 'simulator' ? 'is-active-nav' : ''}`}
+            onClick={() => handleNavClick('simulator')}
           >
-            <span>INTELLIGENCE</span>
-          </button>
-
-          <button 
-            className="nav-link" 
-            onClick={() => handleNavClick('home', '#demo')}
-          >
-            <span>DEMO</span>
-          </button>
-
-          <button 
-            className="nav-link" 
-            onClick={() => handleNavClick('home', '#about')}
-          >
-            <span>ABOUT</span>
+            <span>SIMULATOR</span>
           </button>
         </nav>
 
         {/* Right Status & Simulator Action */}
         <div className="nav-actions">
-          <div className="telemetry-status-badge">
+          <div className="telemetry-status-badge font-mono">
             <span className="status-live-dot"></span>
-            <span className="status-text font-mono">ONLINE</span>
-            <span className="status-divider">·</span>
-            <span className="status-metric font-mono">9ms</span>
+            <span className="status-text">SYSTEM ONLINE</span>
           </div>
 
           <button 

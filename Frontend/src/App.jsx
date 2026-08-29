@@ -10,7 +10,14 @@ import { SimulationProvider } from './simulator/SimulationContext';
 import './App.css';
 
 function AppContent() {
-  const [currentPage, setCurrentPage] = useState('simulator'); // Default to simulator or hash
+  const [currentPage, setCurrentPage] = useState(() => {
+    const hash = window.location.hash;
+    if (hash === '#control-room') return 'control-room';
+    if (hash === '#station-master') return 'station-master';
+    if (hash === '#loco-pilot') return 'loco-pilot';
+    if (hash === '#simulator') return 'simulator';
+    return 'home';
+  });
 
   // Listen to hash changes if user navigates via URL
   useEffect(() => {
@@ -25,8 +32,7 @@ function AppContent() {
       } else if (hash === '#simulator') {
         setCurrentPage('simulator');
       } else if (hash === '#home' || hash === '') {
-        // keep current page or set home if hash explicitly #home
-        if (hash === '#home') setCurrentPage('home');
+        setCurrentPage('home');
       }
     };
     handleHashChange();
@@ -36,6 +42,7 @@ function AppContent() {
 
   const handleNavigate = (page) => {
     setCurrentPage(page);
+    window.location.hash = page === 'home' ? '#home' : `#${page}`;
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
