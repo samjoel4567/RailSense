@@ -1,6 +1,6 @@
 """
 TrainSense FastAPI API Router
-Defines REST API endpoints (/health, /trains, /alerts, /dashboard, /alerts/{id}/acknowledge, /simulation/*)
+Defines REST API endpoints (/health, /trains, /alerts, /dashboard, /alerts/{id}/acknowledge, /simulation/*, /demo/*)
 and WebSocket real-time telemetry endpoint (/ws).
 """
 
@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List
 from fastapi import APIRouter, HTTPException, Path, Query, status, WebSocket, WebSocketDisconnect
 
+from app.services.demo_orchestrator import demo_orchestrator
 from app.services.simulator import simulator
 from app.services.state_store import state_store
 from app.services.websocket_manager import ws_manager
@@ -104,6 +105,22 @@ async def trigger_conflict_scenario() -> Dict[str, Any]:
         "message": "High-risk conflict scenario triggered successfully.",
         "result": result
     }
+
+
+# ----------------------------------------------------
+# END-TO-END DEMO & SYSTEM VERIFICATION ENDPOINTS (Steps 59–60)
+# ----------------------------------------------------
+
+@router.get("/demo/status", summary="Get End-to-End Subsystem Readiness Matrix")
+async def get_demo_system_status() -> Dict[str, Any]:
+    """Returns the readiness and health matrix across all 8 backend subsystems."""
+    return demo_orchestrator.get_system_readiness()
+
+
+@router.post("/demo/run-scenario", summary="Execute Full End-to-End Multi-Modal Demo Trace")
+async def run_demo_scenario() -> Dict[str, Any]:
+    """Executes full multi-modal scenario and returns complete end-to-end trace log."""
+    return await demo_orchestrator.run_full_end_to_end_demo()
 
 
 @router.websocket("/ws")
