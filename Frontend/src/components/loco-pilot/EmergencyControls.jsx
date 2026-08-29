@@ -70,22 +70,7 @@ export default function EmergencyControls({ safety }) {
           <span className="tile-status-note font-mono text-muted">LINK: 100% SIGNAL DUPLEX</span>
         </div>
 
-        {/* Button 4: Pantograph / Traction Breaker */}
-        <div className="emergency-action-tile">
-          <div className="tile-top font-mono">
-            <span className="tile-indicator is-green-dot"></span>
-            <span className="tile-badge text-muted">TRACTION 25kV</span>
-          </div>
-          <button 
-            className="btn-safety-action font-mono"
-            onClick={() => alert('Main Vacuum Circuit Breaker (VCB) locked in closed nominal state.')}
-          >
-            <span className="action-icon">⚡</span>
-            <span className="action-main-text">VCB TRACTION TRIP</span>
-            <span className="action-sub-text">ISOLATE CATENARY SUPPLY</span>
-          </button>
-          <span className="tile-status-note font-mono text-muted">BREAKER: CLOSED (25.2 kV OK)</span>
-        </div>
+
 
       </div>
 

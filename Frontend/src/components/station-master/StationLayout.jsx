@@ -7,6 +7,23 @@ export default function StationLayout({
   selectedEntity,
   onSelectEntity
 }) {
+  const p1B = stationB?.platforms?.[0] || {};
+  const p2B = stationB?.platforms?.[1] || {};
+  const p3B = stationB?.platforms?.[2] || {};
+
+  const track1 = sectionB?.tracks?.[0] || {};
+  const track2 = sectionB?.tracks?.[1] || {};
+  const express201 = track1.activeTrain || {};
+  const local102 = track2.activeTrain || {};
+
+  const p1C = stationC?.platforms?.[0] || {};
+  const p2C = stationC?.platforms?.[1] || {};
+  const p3C = stationC?.platforms?.[2] || {};
+
+  // Progress percentage mapped to left offset inside the corridor track (constrained between 10% and 88%)
+  const expLeft = Math.min(88, Math.max(10, express201.progressPct || 65));
+  const locLeft = Math.min(88, Math.max(10, local102.progressPct || 35));
+
   return (
     <div className="sm-layout-card">
       
@@ -46,39 +63,61 @@ export default function StationLayout({
             <div className="sm-platforms-stack">
               {/* Platform 1 */}
               <div 
-                className={`sm-plat-box plat-p1 ${(selectedEntity === 'STA_B_P1' || selectedEntity === 'LOCAL_101') ? 'is-selected' : ''}`}
-                onClick={() => onSelectEntity && onSelectEntity('STA_B_P1', 'LOCAL_101')}
+                className={`sm-plat-box plat-p1 ${p1B.state === 'OCCUPIED' ? 'is-occupied-box' : ''} ${(selectedEntity === 'STA_B_P1' || selectedEntity === p1B.trainId) ? 'is-selected' : ''}`}
+                onClick={() => onSelectEntity && onSelectEntity('STA_B_P1', p1B.trainId)}
               >
                 <div className="sm-plat-head font-mono">
                   <span className="sm-plat-num text-blue">P1</span>
-                  <span className="sm-plat-badge badge-green-outline">CLEAR</span>
+                  <span className={`sm-plat-badge ${p1B.state === 'OCCUPIED' ? 'badge-amber-outline' : 'badge-green-outline'}`}>
+                    {p1B.state || 'OCCUPIED'}
+                  </span>
                 </div>
                 <div className="sm-plat-body font-mono">
-                  <span className="plat-status-text">AVAILABLE</span>
-                  <span className="plat-note-text text-muted">FOR ALLOCATION</span>
+                  {p1B.trainId ? (
+                    <>
+                      <span className="plat-train-id font-bold text-amber">{p1B.trainId}</span>
+                      <span className="plat-note-text">{p1B.statusNote || 'BOARDING / DWELL'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="plat-status-text">AVAILABLE</span>
+                      <span className="plat-note-text text-muted">FOR ALLOCATION</span>
+                    </>
+                  )}
                 </div>
                 <div className="sm-plat-foot font-mono">
-                  <span>SIG-B1 [GREEN]</span>
-                  <span>360M</span>
+                  <span>{p1B.signalId || 'SIG-B1'} [{p1B.signalAspect || 'GREEN'}]</span>
+                  <span>340M</span>
                 </div>
               </div>
 
               {/* Platform 2 */}
               <div 
-                className={`sm-plat-box plat-p2 is-occupied-box ${(selectedEntity === 'STA_B_P2' || selectedEntity === 'LOCAL_102' || selectedEntity === 'EXPRESS_201') ? 'is-selected' : ''}`}
-                onClick={() => onSelectEntity && onSelectEntity('STA_B_P2', 'LOCAL_102')}
+                className={`sm-plat-box plat-p2 ${p2B.state === 'DEPARTING' || p2B.state === 'OCCUPIED' ? 'is-occupied-box' : ''} ${(selectedEntity === 'STA_B_P2' || selectedEntity === p2B.trainId) ? 'is-selected' : ''}`}
+                onClick={() => onSelectEntity && onSelectEntity('STA_B_P2', p2B.trainId)}
               >
                 <div className="sm-plat-head font-mono">
                   <span className="sm-plat-num text-amber">P2</span>
-                  <span className="sm-plat-badge badge-amber-outline">OCCUPIED</span>
+                  <span className={`sm-plat-badge ${p2B.state === 'DEPARTING' ? 'badge-blue-outline' : p2B.state === 'OCCUPIED' ? 'badge-amber-outline' : 'badge-green-outline'}`}>
+                    {p2B.state || 'DEPARTING'}
+                  </span>
                 </div>
                 <div className="sm-plat-body font-mono">
-                  <span className="plat-train-id font-bold text-amber">LOCAL_102</span>
-                  <span className="plat-note-text">BOARDING / DEPART 09:12</span>
+                  {p2B.trainId ? (
+                    <>
+                      <span className="plat-train-id font-bold text-blue">{p2B.trainId}</span>
+                      <span className="plat-note-text">{p2B.statusNote || 'DEPARTED → SECTION B'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="plat-status-text">CLEAR</span>
+                      <span className="plat-note-text text-muted">{p2B.statusNote || 'STANDBY'}</span>
+                    </>
+                  )}
                 </div>
                 <div className="sm-plat-foot font-mono">
-                  <span>SIG-B2 [GREEN]</span>
-                  <span>360M</span>
+                  <span>{p2B.signalId || 'SIG-B2'} [{p2B.signalAspect || 'GREEN'}]</span>
+                  <span>380M</span>
                 </div>
               </div>
 
@@ -89,15 +128,15 @@ export default function StationLayout({
               >
                 <div className="sm-plat-head font-mono">
                   <span className="sm-plat-num text-blue">P3</span>
-                  <span className="sm-plat-badge badge-green-outline">CLEAR</span>
+                  <span className="sm-plat-badge badge-green-outline">{p3B.state || 'CLEAR'}</span>
                 </div>
                 <div className="sm-plat-body font-mono">
                   <span className="plat-status-text">AVAILABLE</span>
-                  <span className="plat-note-text text-muted">FOR ALLOCATION</span>
+                  <span className="plat-note-text text-muted">{p3B.statusNote || 'FOR ALLOCATION'}</span>
                 </div>
                 <div className="sm-plat-foot font-mono">
-                  <span>SIG-B3 [GREEN]</span>
-                  <span>360M</span>
+                  <span>{p3B.signalId || 'SIG-B3'} [{p3B.signalAspect || 'RED'}]</span>
+                  <span>280M</span>
                 </div>
               </div>
             </div>
@@ -147,17 +186,17 @@ export default function StationLayout({
                   {/* Train Marker: EXPRESS_201 */}
                   <div 
                     className={`corridor-train-card card-train-blue ${(selectedEntity === 'EXPRESS_201' || selectedEntity === 'STA_C_P1') ? 'is-focused' : ''}`}
-                    style={{ left: '55%' }}
+                    style={{ left: `${expLeft}%` }}
                     onClick={() => onSelectEntity && onSelectEntity('EXPRESS_201', 'SECTION_B')}
                   >
                     <div className="train-card-top-line font-mono">
                       <span className="train-icon">🚆</span>
                       <span className="train-id font-bold">EXPRESS_201</span>
-                      <span className="train-spd font-bold">118 KM/H</span>
+                      <span className="train-spd font-bold">{express201.speed || 118} KM/H</span>
                     </div>
                     <div className="train-card-bot-line font-mono">
-                      <span>65% TRAVERSED</span>
-                      <span className="train-eta">ETA C: 8 MIN</span>
+                      <span>{express201.progressPct || 65}% TRAVERSED</span>
+                      <span className="train-eta">ETA C: {express201.etaToDestination || '8 MIN'}</span>
                     </div>
                   </div>
                 </div>
@@ -178,17 +217,17 @@ export default function StationLayout({
                   {/* Train Marker: LOCAL_102 */}
                   <div 
                     className={`corridor-train-card card-train-amber ${(selectedEntity === 'LOCAL_102' || selectedEntity === 'STA_B_P2') ? 'is-focused' : ''}`}
-                    style={{ left: '20%' }}
+                    style={{ left: `${locLeft}%` }}
                     onClick={() => onSelectEntity && onSelectEntity('LOCAL_102', 'SECTION_B')}
                   >
                     <div className="train-card-top-line font-mono">
                       <span className="train-icon">🚆</span>
                       <span className="train-id font-bold">LOCAL_102</span>
-                      <span className="train-spd font-bold">76 KM/H</span>
+                      <span className="train-spd font-bold">{local102.speed || 76} KM/H</span>
                     </div>
                     <div className="train-card-bot-line font-mono">
-                      <span>35% TRAVERSED</span>
-                      <span className="train-eta">ETA B: 12 MIN</span>
+                      <span>{local102.progressPct || 35}% TRAVERSED</span>
+                      <span className="train-eta">ETA B: {local102.etaToDestination || '12 MIN'}</span>
                     </div>
                   </div>
                 </div>
@@ -251,15 +290,17 @@ export default function StationLayout({
               >
                 <div className="sm-plat-head font-mono">
                   <span className="sm-plat-num text-blue">P1</span>
-                  <span className="sm-plat-badge badge-blue-outline">RESERVED</span>
+                  <span className="sm-plat-badge badge-blue-outline">{p1C.state || 'RESERVED'}</span>
                 </div>
                 <div className="sm-plat-body font-mono">
-                  <span className="plat-train-id font-bold text-blue">RESERVED: EXPRESS_201</span>
-                  <span className="plat-note-text">ETA: 8 MIN</span>
+                  <span className="plat-train-id font-bold text-blue">
+                    {p1C.reservedForTrainId ? `RESERVED: ${p1C.reservedForTrainId}` : 'RESERVED: EXPRESS_201'}
+                  </span>
+                  <span className="plat-note-text">ETA: {express201.etaToDestination || '8 MIN'}</span>
                   <span className="plat-note-text text-green font-bold">PLATFORM SECURED</span>
                 </div>
                 <div className="sm-plat-foot font-mono">
-                  <span>SIG-C1 [GREEN]</span>
+                  <span>{p1C.signalId || 'SIG-C1'} [{p1C.signalAspect || 'GREEN'}]</span>
                   <span>360M</span>
                 </div>
               </div>
@@ -271,14 +312,14 @@ export default function StationLayout({
               >
                 <div className="sm-plat-head font-mono">
                   <span className="sm-plat-num text-amber">P2</span>
-                  <span className="sm-plat-badge badge-amber-outline">OCCUPIED</span>
+                  <span className="sm-plat-badge badge-amber-outline">{p2C.state || 'OCCUPIED'}</span>
                 </div>
                 <div className="sm-plat-body font-mono">
-                  <span className="plat-train-id font-bold text-green">EXPRESS_202</span>
-                  <span className="plat-note-text">BOARDING / DEPART 14:47</span>
+                  <span className="plat-train-id font-bold text-green">{p2C.trainId || 'EXPRESS_202'}</span>
+                  <span className="plat-note-text">{p2C.statusNote || 'BOARDING / DEPART 14:47'}</span>
                 </div>
                 <div className="sm-plat-foot font-mono">
-                  <span>SIG-C2 [GREEN]</span>
+                  <span>{p2C.signalId || 'SIG-C2'} [{p2C.signalAspect || 'GREEN'}]</span>
                   <span>360M</span>
                 </div>
               </div>
@@ -290,15 +331,15 @@ export default function StationLayout({
               >
                 <div className="sm-plat-head font-mono">
                   <span className="sm-plat-num text-blue">P3</span>
-                  <span className="sm-plat-badge badge-green-outline">CLEAR</span>
+                  <span className="sm-plat-badge badge-green-outline">{p3C.state || 'CLEAR'}</span>
                 </div>
                 <div className="sm-plat-body font-mono">
                   <span className="plat-status-text">AVAILABLE</span>
-                  <span className="plat-note-text text-muted">FOR DIVERSION</span>
+                  <span className="plat-note-text text-muted">{p3C.statusNote || 'FOR DIVERSION'}</span>
                 </div>
                 <div className="sm-plat-foot font-mono">
-                  <span>SIG-C3 [RED]</span>
-                  <span>360M</span>
+                  <span>{p3C.signalId || 'SIG-C3'} [{p3C.signalAspect || 'RED'}]</span>
+                  <span>260M</span>
                 </div>
               </div>
             </div>
@@ -332,7 +373,7 @@ export default function StationLayout({
               </div>
               <div className="feeder-badges-row font-mono">
                 <span className="f-badge badge-green">ROUTE SECURED</span>
-                <span className="f-badge badge-green">SIG-C1 [GREEN]</span>
+                <span className="f-badge badge-green">SIG-C1 [{p1C.signalAspect || 'GREEN'}]</span>
                 <span className="f-badge badge-blue">SPEED RESTRICTION 40 KM/H</span>
               </div>
             </div>
@@ -353,7 +394,7 @@ export default function StationLayout({
               </div>
               <div className="feeder-badges-row font-mono">
                 <span className="f-badge badge-amber">OPPOSITE FLOW</span>
-                <span className="f-badge badge-green">SIG-C2 [GREEN]</span>
+                <span className="f-badge badge-green">SIG-C2 [{p2C.signalAspect || 'GREEN'}]</span>
                 <span className="f-badge badge-blue">SPEED RESTRICTION 40 KM/H</span>
               </div>
             </div>
@@ -370,7 +411,7 @@ export default function StationLayout({
               </div>
               <div className="feeder-badges-row font-mono">
                 <span className="f-badge badge-blue">CLEAR</span>
-                <span className="f-badge badge-red">SIG-C3 [RED]</span>
+                <span className="f-badge badge-red">SIG-C3 [{p3C.signalAspect || 'RED'}]</span>
                 <span className="f-badge badge-blue">AVAILABLE</span>
               </div>
             </div>

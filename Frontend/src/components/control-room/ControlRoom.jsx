@@ -5,12 +5,11 @@ import RailwayMap from './RailwayMap';
 import TrainOperations from './TrainOperations';
 import ActiveAlerts from './ActiveAlerts';
 import RiskIndicator from './RiskIndicator';
-
-import { mockTrains } from '../../data/mockTrains';
-import { mockAlerts } from '../../data/mockAlerts';
-import { mockNetwork } from '../../data/mockNetwork';
+import { useNetworkState } from '../../simulator/SimulationContext';
 
 export default function ControlRoom() {
+  const { network, trains, alerts, risk } = useNetworkState();
+
   const [selectedTrainId, setSelectedTrainId] = useState(null);
   const [selectedSectionId, setSelectedSectionId] = useState(null);
   const [selectedAlertId, setSelectedAlertId] = useState(null);
@@ -23,12 +22,12 @@ export default function ControlRoom() {
       setSelectedSectionId(null);
     } else {
       setSelectedTrainId(trainId);
-      const train = mockTrains.find(t => t.id === trainId);
+      const train = trains.find(t => t.id === trainId);
       if (train) {
         setSelectedSectionId(train.section);
       }
       // If there's an alert associated with this train, select it
-      const matchingAlert = mockAlerts.find(a => a.trainId === trainId);
+      const matchingAlert = alerts.find(a => a.trainId === trainId);
       setSelectedAlertId(matchingAlert ? matchingAlert.id : null);
     }
   };
@@ -38,7 +37,7 @@ export default function ControlRoom() {
       setSelectedSectionId(null);
     } else {
       setSelectedSectionId(sectionId);
-      const trainInSection = mockTrains.find(t => t.section === sectionId);
+      const trainInSection = trains.find(t => t.section === sectionId);
       setSelectedTrainId(trainInSection ? trainInSection.id : null);
     }
   };
@@ -77,19 +76,19 @@ export default function ControlRoom() {
 
         {/* 2. Operational Network Summary */}
         <NetworkSummary 
-          activeTrains={mockNetwork.activeTrainsCount}
-          delayedTrains={mockNetwork.delayedTrainsCount}
-          activeAlerts={mockNetwork.activeAlertsCount}
-          networkRisk={mockNetwork.networkRiskScore}
+          activeTrains={network.activeTrainsCount}
+          delayedTrains={network.delayedTrainsCount}
+          activeAlerts={network.activeAlertsCount}
+          networkRisk={network.networkRiskScore}
           selectedTrainId={selectedTrainId}
           selectedSectionId={selectedSectionId}
         />
 
         {/* 3. Primary Railway Network Map */}
         <RailwayMap 
-          trains={mockTrains}
-          stations={mockNetwork.stations}
-          sections={mockNetwork.sections}
+          trains={trains}
+          stations={network.stations}
+          sections={network.sections}
           selectedTrainId={selectedTrainId}
           selectedSectionId={selectedSectionId}
           onSelectTrain={handleSelectTrain}
@@ -102,7 +101,7 @@ export default function ControlRoom() {
           {/* Left Column: Train Operations Table */}
           <div className="cr-split-left">
             <TrainOperations 
-              trains={mockTrains}
+              trains={trains}
               selectedTrainId={selectedTrainId}
               onSelectTrain={handleSelectTrain}
             />
@@ -111,15 +110,15 @@ export default function ControlRoom() {
           {/* Right Column: Active Alerts & Network Risk Indicator */}
           <div className="cr-split-right">
             <ActiveAlerts 
-              alerts={mockAlerts}
+              alerts={alerts}
               selectedAlertId={selectedAlertId}
               onSelectAlert={handleSelectAlert}
             />
 
             <RiskIndicator 
-              riskScore={mockNetwork.networkRiskScore}
-              riskCategory={mockNetwork.riskCategory}
-              breakdown={mockNetwork.riskBreakdown}
+              riskScore={network.networkRiskScore}
+              riskCategory={network.riskCategory}
+              breakdown={network.riskBreakdown}
             />
           </div>
 

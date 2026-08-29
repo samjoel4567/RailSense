@@ -1,21 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 
-export default function LocoHeader({ data }) {
-  const [time, setTime] = useState('');
-
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      const h = String(now.getHours()).padStart(2, '0');
-      const m = String(now.getMinutes()).padStart(2, '0');
-      const s = String(now.getSeconds()).padStart(2, '0');
-      setTime(`${h}:${m}:${s} CEST`);
-    };
-    updateTime();
-    const timer = setInterval(updateTime, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
+export default function LocoHeader({ data, simTime, activeCabId, onSelectCab }) {
   return (
     <div className="loco-header">
       <div className="loco-header-left">
@@ -37,6 +22,44 @@ export default function LocoHeader({ data }) {
         <p className="loco-subtitle font-mono">
           CORRIDOR: {data.route.origin} ➔ {data.route.currentSection} ➔ {data.route.destination} [{data.route.destinationPlatform}]
         </p>
+
+        {/* Cab Selector Tabs */}
+        {onSelectCab && (
+          <div className="cab-selector-row font-mono" style={{ marginTop: '0.6rem', display: 'flex', gap: '0.5rem' }}>
+            <button
+              className={`cab-select-btn ${activeCabId === 'LOCAL_101' ? 'active' : ''}`}
+              onClick={() => onSelectCab('LOCAL_101')}
+              style={{
+                background: activeCabId === 'LOCAL_101' ? '#10b981' : '#1e293b',
+                color: activeCabId === 'LOCAL_101' ? '#020617' : '#94a3b8',
+                border: '1px solid ' + (activeCabId === 'LOCAL_101' ? '#34d399' : '#334155'),
+                padding: '0.35rem 0.75rem',
+                borderRadius: '4px',
+                fontSize: '0.75rem',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              🚆 CAB 1: LOCAL_101 (STATION B P1 DEPARTURE)
+            </button>
+            <button
+              className={`cab-select-btn ${activeCabId === 'EXPRESS_201' ? 'active' : ''}`}
+              onClick={() => onSelectCab('EXPRESS_201')}
+              style={{
+                background: activeCabId === 'EXPRESS_201' ? '#38bdf8' : '#1e293b',
+                color: activeCabId === 'EXPRESS_201' ? '#020617' : '#94a3b8',
+                border: '1px solid ' + (activeCabId === 'EXPRESS_201' ? '#7dd3fc' : '#334155'),
+                padding: '0.35rem 0.75rem',
+                borderRadius: '4px',
+                fontSize: '0.75rem',
+                fontWeight: 'bold',
+                cursor: 'pointer'
+              }}
+            >
+              ⚡ CAB 2: EXPRESS_201 (INTERCITY SECTION B)
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="loco-header-right font-mono">
@@ -46,8 +69,8 @@ export default function LocoHeader({ data }) {
         </div>
 
         <div className="loco-clock-box">
-          <span className="clock-lbl">CAB TIME (UTC+2)</span>
-          <span className="clock-val font-bold">{time || '14:28:45 CEST'}</span>
+          <span className="clock-lbl">SIMULATION TIME</span>
+          <span className="clock-val font-bold">{simTime || '14:20:00'} CEST</span>
         </div>
       </div>
     </div>

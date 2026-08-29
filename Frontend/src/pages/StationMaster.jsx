@@ -5,108 +5,90 @@ import StationLayout from '../components/station-master/StationLayout';
 import ArrivalsDepartures from '../components/station-master/ArrivalsDepartures';
 import PlatformStatus from '../components/station-master/PlatformStatus';
 import StationAlerts from '../components/station-master/StationAlerts';
-
-import { mockStationData } from '../data/mockStation';
+import { useStationMasterState } from '../simulator/SimulationContext';
 
 export default function StationMaster() {
-  const [selectedPlatformId, setSelectedPlatformId] = useState(null);
-  const [selectedTrainId, setSelectedTrainId] = useState(null);
-  const [selectedAlertId, setSelectedAlertId] = useState(null);
+  const { stationData } = useStationMasterState();
+  const [selectedEntity, setSelectedEntity] = useState(null);
 
-  // Platform selection handler
-  const handleSelectPlatform = (platformId) => {
-    if (selectedPlatformId === platformId) {
-      setSelectedPlatformId(null);
-      setSelectedTrainId(null);
+  // Interaction handlers
+  const handleSelectEntity = (entityId, secondaryId) => {
+    if (selectedEntity === entityId) {
+      setSelectedEntity(null);
     } else {
-      setSelectedPlatformId(platformId);
-      const plat = mockStationData.platforms.find(p => p.id === platformId);
-      if (plat && plat.currentTrainId) {
-        setSelectedTrainId(plat.currentTrainId);
-      }
+      setSelectedEntity(entityId || secondaryId);
     }
   };
 
-  // Train selection handler
   const handleSelectTrain = (trainId) => {
-    if (selectedTrainId === trainId) {
-      setSelectedTrainId(null);
+    if (selectedEntity === trainId) {
+      setSelectedEntity(null);
     } else {
-      setSelectedTrainId(trainId);
-      const plat = mockStationData.platforms.find(p => p.currentTrainId === trainId || p.approachingTrainId === trainId);
-      if (plat) {
-        setSelectedPlatformId(plat.id);
-      }
+      setSelectedEntity(trainId);
     }
   };
 
-  // Alert selection handler
   const handleSelectAlert = (alert) => {
-    if (selectedAlertId === alert.id) {
-      setSelectedAlertId(null);
+    if (selectedEntity === alert.id) {
+      setSelectedEntity(null);
     } else {
-      setSelectedAlertId(alert.id);
-      if (alert.trainId) {
-        setSelectedTrainId(alert.trainId.split('/')[0].trim());
-      }
+      setSelectedEntity(alert.id);
     }
   };
 
   const handleResetSelection = () => {
-    setSelectedPlatformId(null);
-    setSelectedTrainId(null);
-    setSelectedAlertId(null);
+    setSelectedEntity(null);
   };
 
   return (
     <div className="station-master-page">
       <div className="sm-page-container">
         
-        {/* 1. Station Header */}
+        {/* 1. Station Master Header */}
         <StationHeader 
-          stationName={mockStationData.stationName}
-          junctionName={mockStationData.junctionName}
-          stationCode={mockStationData.stationCode}
           onResetSelection={handleResetSelection}
-          selectedPlatformId={selectedPlatformId}
+          selectedEntity={selectedEntity}
         />
 
-        {/* 2. Station Operational Summary */}
+        {/* 2. Station Operational Summary (Station B ➔ Section B ➔ Station C) */}
         <StationSummary 
-          summary={mockStationData.summary}
-          selectedPlatformId={selectedPlatformId}
+          summary={stationData.lifecycleSummary}
+          selectedEntity={selectedEntity}
         />
 
-        {/* 3. Large Station Operations Area (Reserved for Visualization) */}
+        {/* 3. Primary Railway Lifecycle Visualization (Station B ➔ Section B ➔ Station C) */}
         <StationLayout 
-          platforms={mockStationData.platforms}
-          selectedPlatformId={selectedPlatformId}
-          onSelectPlatform={handleSelectPlatform}
+          stationB={stationData.stationB}
+          sectionB={stationData.sectionB}
+          stationC={stationData.stationC}
+          selectedEntity={selectedEntity}
+          onSelectEntity={handleSelectEntity}
         />
 
-        {/* 4. Lower Operations Split Grid */}
+        {/* 4. Lower Operational Split: Arrivals/Departures Table + Platform Status & Alerts */}
         <div className="sm-bottom-split-grid">
           
           {/* Left Column: Arrivals & Departures Table */}
           <div className="sm-split-left">
             <ArrivalsDepartures 
-              items={mockStationData.arrivalsDepartures}
-              selectedTrainId={selectedTrainId}
+              items={stationData.arrivalsDepartures}
+              selectedEntity={selectedEntity}
               onSelectTrain={handleSelectTrain}
             />
           </div>
 
-          {/* Right Column: Platform Status & Station Alerts */}
+          {/* Right Column: Station B vs C Platforms & Operational Alerts */}
           <div className="sm-split-right">
             <PlatformStatus 
-              platforms={mockStationData.platforms}
-              selectedPlatformId={selectedPlatformId}
-              onSelectPlatform={handleSelectPlatform}
+              stationBPlatforms={stationData.stationB.platforms}
+              stationCPlatforms={stationData.stationC.platforms}
+              selectedEntity={selectedEntity}
+              onSelectPlatform={handleSelectEntity}
             />
 
             <StationAlerts 
-              alerts={mockStationData.alerts}
-              selectedAlertId={selectedAlertId}
+              alerts={stationData.alerts}
+              selectedEntity={selectedEntity}
               onSelectAlert={handleSelectAlert}
             />
           </div>

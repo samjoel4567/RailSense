@@ -63,6 +63,13 @@ export default function Navbar({ currentPage = 'home', onNavigate }) {
           </button>
 
           <button 
+            className={`nav-link ${currentPage === 'simulator' ? 'is-active-nav' : ''}`}
+            onClick={() => handleNavClick('simulator')}
+          >
+            <span>SIMULATOR</span>
+          </button>
+
+          <button 
             className={`nav-link ${currentPage === 'control-room' ? 'is-active-nav' : ''}`}
             onClick={() => handleNavClick('control-room')}
           >
@@ -74,6 +81,13 @@ export default function Navbar({ currentPage = 'home', onNavigate }) {
             onClick={() => handleNavClick('station-master')}
           >
             <span>STATION MASTER</span>
+          </button>
+
+          <button 
+            className={`nav-link ${currentPage === 'loco-pilot' ? 'is-active-nav' : ''}`}
+            onClick={() => handleNavClick('loco-pilot')}
+          >
+            <span>LOCO PILOT</span>
           </button>
 
           <button 
@@ -98,7 +112,7 @@ export default function Navbar({ currentPage = 'home', onNavigate }) {
           </button>
         </nav>
 
-        {/* Right Status & Control Room Action */}
+        {/* Right Status & Simulator Action */}
         <div className="nav-actions">
           <div className="telemetry-status-badge">
             <span className="status-live-dot"></span>
@@ -109,9 +123,9 @@ export default function Navbar({ currentPage = 'home', onNavigate }) {
 
           <button 
             className="btn-primary" 
-            onClick={() => handleNavClick(currentPage === 'control-room' ? 'home' : 'control-room')}
+            onClick={() => handleNavClick(currentPage === 'simulator' ? 'home' : 'simulator')}
           >
-            <span>{currentPage === 'control-room' ? 'Exit to Home' : 'Control Room'}</span>
+            <span>{currentPage === 'simulator' ? 'Exit to Home' : 'Simulator'}</span>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="5" y1="12" x2="19" y2="12"></line>
               <polyline points="12 5 19 12 12 19"></polyline>

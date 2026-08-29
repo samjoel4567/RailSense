@@ -3,19 +3,30 @@ import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import ControlRoom from './components/control-room/ControlRoom';
 import StationMaster from './pages/StationMaster';
+import LocoPilot from './pages/LocoPilot';
+import Simulator from './pages/Simulator';
 import Footer from './components/Footer';
+import { SimulationProvider } from './simulator/SimulationContext';
 import './App.css';
 
-function App() {
-  const [currentPage, setCurrentPage] = useState('home');
+function AppContent() {
+  const [currentPage, setCurrentPage] = useState('simulator'); // Default to simulator or hash
 
   // Listen to hash changes if user navigates via URL
   useEffect(() => {
     const handleHashChange = () => {
-      if (window.location.hash === '#control-room') {
+      const hash = window.location.hash;
+      if (hash === '#control-room') {
         setCurrentPage('control-room');
-      } else if (window.location.hash === '#station-master') {
+      } else if (hash === '#station-master') {
         setCurrentPage('station-master');
+      } else if (hash === '#loco-pilot') {
+        setCurrentPage('loco-pilot');
+      } else if (hash === '#simulator') {
+        setCurrentPage('simulator');
+      } else if (hash === '#home' || hash === '') {
+        // keep current page or set home if hash explicitly #home
+        if (hash === '#home') setCurrentPage('home');
       }
     };
     handleHashChange();
@@ -33,9 +44,13 @@ function App() {
       {/* Top Navigation */}
       <Navbar currentPage={currentPage} onNavigate={handleNavigate} />
 
-      {/* Main View: Locked Home Page, Control Room, or Station Master */}
+      {/* Main View: Dedicated Simulator Page, Control Room, Station Master, Loco Pilot, or Home */}
       <main className="main-content">
-        {currentPage === 'station-master' ? (
+        {currentPage === 'simulator' ? (
+          <Simulator />
+        ) : currentPage === 'loco-pilot' ? (
+          <LocoPilot />
+        ) : currentPage === 'station-master' ? (
           <StationMaster />
         ) : currentPage === 'control-room' ? (
           <ControlRoom />
@@ -47,6 +62,14 @@ function App() {
       {/* Shared Footer */}
       <Footer />
     </div>
+  );
+}
+
+function App() {
+  return (
+    <SimulationProvider>
+      <AppContent />
+    </SimulationProvider>
   );
 }
 
