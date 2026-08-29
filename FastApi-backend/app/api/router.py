@@ -1,13 +1,14 @@
 """
 TrainSense FastAPI API Router
-Defines REST API endpoints (/health, /trains, /alerts, /dashboard, /alerts/{id}/acknowledge)
+Defines REST API endpoints (/health, /trains, /alerts, /dashboard, /alerts/{id}/acknowledge, /simulation/*)
 and WebSocket real-time telemetry endpoint (/ws).
 """
 
 from datetime import datetime, timezone
 from typing import Any, Dict, List
-from fastapi import APIRouter, HTTPException, Path, status, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Path, Query, status, WebSocket, WebSocketDisconnect
 
+from app.services.simulator import simulator
 from app.services.state_store import state_store
 from app.services.websocket_manager import ws_manager
 
@@ -23,7 +24,8 @@ async def get_health() -> Dict[str, Any]:
         "version": "0.1.0",
         "event_bus": "active",
         "ml_model": "loaded",
-        "websocket": "active"
+        "websocket": "active",
+        "simulator": simulator.scenario_name
     }
 
 
@@ -59,6 +61,48 @@ async def acknowledge_alert(
     return {
         "message": f"Alert '{alert_id}' successfully acknowledged.",
         "alert": updated_alert
+    }
+
+
+# ----------------------------------------------------
+# SIMULATION & DEMO SCENARIO CONTROL ENDPOINTS (Steps 56–58)
+# ----------------------------------------------------
+
+@router.get("/simulation/status", summary="Get Simulator Status")
+async def get_simulation_status() -> Dict[str, Any]:
+    """Returns current telemetry simulator running status and active scenario."""
+    return simulator.get_status()
+
+
+@router.post("/simulation/start", summary="Start Real-Time Telemetry Simulation")
+async def start_simulation(
+    interval_seconds: float = Query(2.0, ge=0.5, le=10.0, description="Telemetry broadcast interval in seconds")
+) -> Dict[str, Any]:
+    """Starts the real-time background telemetry simulator."""
+    await simulator.start(interval_seconds=interval_seconds)
+    return {
+        "message": "Telemetry simulation started successfully.",
+        "status": simulator.get_status()
+    }
+
+
+@router.post("/simulation/stop", summary="Stop Telemetry Simulation")
+async def stop_simulation() -> Dict[str, Any]:
+    """Stops the real-time background telemetry simulator."""
+    await simulator.stop()
+    return {
+        "message": "Telemetry simulation stopped successfully.",
+        "status": simulator.get_status()
+    }
+
+
+@router.post("/simulation/trigger-conflict", summary="Trigger High-Risk Demo Conflict Scenario")
+async def trigger_conflict_scenario() -> Dict[str, Any]:
+    """Triggers the primary TrainSense multi-modal conflict & vision intrusion scenario."""
+    result = await simulator.trigger_high_risk_conflict_scenario()
+    return {
+        "message": "High-risk conflict scenario triggered successfully.",
+        "result": result
     }
 
 
