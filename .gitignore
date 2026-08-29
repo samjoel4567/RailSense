@@ -36,3 +36,6 @@ venv/
 
 # YOLO model weights
 *.pt
+
+.venv/
+*.pt
