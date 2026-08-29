@@ -1,0 +1,134 @@
+/* ==========================================================================
+   RAIL//AI DESIGN SYSTEM — LIGHT & MINIMAL ARCHITECTURAL EDITION (10/10)
+   Inspired by Swiss Railway Design (SBB CFF FFS), Linear, and Leica Optics
+   ========================================================================== */
+
+:root {
+  /* LIGHT CANVAS & SURFACES */
+  --bg-primary: #fcfcfd;          /* Ultra-clean warm paper canvas */
+  --bg-canvas: #f8fafc;           /* Subtle section separation */
+  --bg-surface: #ffffff;          /* Pure crisp white card surface */
+  --bg-surface-elevated: #ffffff; /* Floating modal/dropdown surface */
+  --bg-surface-subtle: #f1f5f9;   /* Subtle chip and tag backgrounds */
+  --bg-surface-hover: #f8fafc;    /* Interactive hover highlight */
+  --bg-panel-header: #f8fafc;     /* Clean light toolbar header */
+  --bg-glass: rgba(255, 255, 255, 0.88);
+
+  /* HIGH-CONTRAST EDITORIAL TYPOGRAPHY */
+  --text-primary: #090d16;        /* Deep obsidian black */
+  --text-secondary: #475569;      /* Slate charcoal body */
+  --text-muted: #64748b;          /* Balanced metadata slate */
+  --text-dim: #94a3b8;            /* Low-emphasis captions & numbering */
+  --text-inverse: #ffffff;        /* White text for dark buttons */
+
+  /* RAILWAY PRECISION ACCENTS */
+  --accent-action: #0f172a;       /* Sophisticated deep slate/black primary */
+  --accent-action-hover: #1e293b;
+  --accent-rail-red: #e11d48;     /* Swiss railway clock second hand crimson */
+  --accent-rail-orange: #ea580c;  /* Track safety amber */
+  --accent-blue: #0284c7;         /* Precision telemetry cobalt */
+  --accent-blue-subtle: #e0f2fe;  /* Soft cobalt tag tint */
+  
+  /* SIGNAL ASYMMETRY */
+  --signal-green: #059669;        /* Clear Aspect */
+  --signal-green-subtle: #ecfdf5;
+  --signal-amber: #d97706;        /* Restrictive Aspect */
+  --signal-amber-subtle: #fffbeb;
+  --signal-red: #e11d48;          /* Stop Aspect */
+  --signal-red-subtle: #fff1f2;
+
+  /* HAIRLINE ARCHITECTURAL BORDERS */
+  --border-hairline: rgba(15, 23, 42, 0.06);
+  --border-subtle: rgba(15, 23, 42, 0.09);
+  --border-medium: rgba(15, 23, 42, 0.16);
+  --border-solid: #e2e8f0;
+  --border-focus: #0f172a;
+
+  /* SOFT TACTILE SHADOWS */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 4px 16px -2px rgba(0, 0, 0, 0.05), 0 2px 6px -1px rgba(0, 0, 0, 0.03);
+  --shadow-lg: 0 16px 36px -4px rgba(0, 0, 0, 0.06), 0 4px 12px -2px rgba(0, 0, 0, 0.02);
+  --shadow-console: 0 20px 48px -12px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(15, 23, 42, 0.08);
+
+  /* TYPOGRAPHY STACKS */
+  --font-display: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+
+  /* GEOMETRY & LAYOUT */
+  --container-max: 1360px;
+  --radius-xs: 3px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 9999px;
+
+  /* MICRO-INTERACTION TIMINGS */
+  --trans-fast: 0.12s cubic-bezier(0.16, 1, 0.3, 1);
+  --trans-base: 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  --trans-smooth: 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* RESET & BASE */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  min-height: 100%;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  letter-spacing: -0.012em;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  outline: none;
+}
+
+.font-mono, code, pre, time, [data-mono] {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum" 1, "zero" 1;
+}
+
+/* Refined Minimalist Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+::selection {
+  background: #0f172a;
+  color: #ffffff;
+}
