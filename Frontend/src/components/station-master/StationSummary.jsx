@@ -13,12 +13,12 @@ export default function StationSummary({ summary, selectedEntity }) {
   return (
     <div className="sm-summary-strip">
       
-      {/* 1. Station B Platforms */}
+      {/* 1. Station B Summary */}
       <div className="summary-pill">
         <span className="summary-pill-label font-mono">STATION B (ORIGIN)</span>
         <div className="summary-pill-main">
           <span className="summary-pill-val font-mono">3 PLATS</span>
-          <span className="summary-pill-sub font-mono text-muted">1 OCCUPIED / 1 DEPARTING</span>
+          <span className="summary-pill-sub font-mono text-muted">1 OCCUPIED · 1 DEPARTING · 1 CLEAR</span>
         </div>
       </div>
 
@@ -27,16 +27,16 @@ export default function StationSummary({ summary, selectedEntity }) {
         <span className="summary-pill-label font-mono">SECTION B (24.8 KM)</span>
         <div className="summary-pill-main">
           <span className="summary-pill-val font-mono">{trainsInSectionB} TRAINS</span>
-          <span className="summary-pill-sub font-mono text-muted">EXP_201 (118 km/h) ↓ / LOC_102 ↑</span>
+          <span className="summary-pill-sub font-mono text-blue font-bold">EXPRESS_201 ↓ · LOCAL_102 ↑</span>
         </div>
       </div>
 
-      {/* 3. Station C Platforms */}
+      {/* 3. Station C Summary */}
       <div className="summary-pill">
         <span className="summary-pill-label font-mono">STATION C (DESTINATION)</span>
         <div className="summary-pill-main">
           <span className="summary-pill-val font-mono">3 PLATS</span>
-          <span className="summary-pill-sub font-mono text-muted">P1 RESERVED FOR EXP_201</span>
+          <span className="summary-pill-sub font-mono text-muted">1 RESERVED · 1 OCCUPIED · 1 CLEAR</span>
         </div>
       </div>
 
@@ -45,7 +45,7 @@ export default function StationSummary({ summary, selectedEntity }) {
         <span className="summary-pill-label font-mono">DELAYED TRAINS</span>
         <div className="summary-pill-main">
           <span className="summary-pill-val font-mono text-amber">1</span>
-          <span className="summary-pill-sub font-mono text-amber">LOCAL_101 (+8m AT B)</span>
+          <span className="summary-pill-sub font-mono text-amber font-bold">LOCAL_101 (+8m)</span>
         </div>
       </div>
 
