@@ -1,12 +1,15 @@
 """
 TrainSense FastAPI API Router
-Defines REST API endpoints for /health, /trains, /alerts, /dashboard, and /alerts/{id}/acknowledge.
+Defines REST API endpoints (/health, /trains, /alerts, /dashboard, /alerts/{id}/acknowledge)
+and WebSocket real-time telemetry endpoint (/ws).
 """
 
+from datetime import datetime, timezone
 from typing import Any, Dict, List
-from fastapi import APIRouter, HTTPException, Path, status
+from fastapi import APIRouter, HTTPException, Path, status, WebSocket, WebSocketDisconnect
 
 from app.services.state_store import state_store
+from app.services.websocket_manager import ws_manager
 
 router = APIRouter()
 
@@ -19,7 +22,8 @@ async def get_health() -> Dict[str, Any]:
         "service": "TrainSense Backend API",
         "version": "0.1.0",
         "event_bus": "active",
-        "ml_model": "loaded"
+        "ml_model": "loaded",
+        "websocket": "active"
     }
 
 
@@ -56,3 +60,31 @@ async def acknowledge_alert(
         "message": f"Alert '{alert_id}' successfully acknowledged.",
         "alert": updated_alert
     }
+
+
+@router.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """
+    WebSocket endpoint broadcasting real-time Event Bus events
+    (PREDICTION, VISION_DETECTION, ALERT, TRAIN_UPDATE) to connected clients.
+    """
+    await ws_manager.connect(websocket)
+    try:
+        # Send initial connection status frame
+        await websocket.send_json({
+            "event_type": "SYSTEM_CONNECT",
+            "message": "Connected to TrainSense Real-Time Telemetry & Alert Stream",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+        while True:
+            # Maintain active connection and listen for client messages/pings
+            data = await websocket.receive_text()
+            await websocket.send_json({
+                "event_type": "CLIENT_ACK",
+                "received": data,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
+    except Exception:
+        ws_manager.disconnect(websocket)
