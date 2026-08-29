@@ -1,6 +1,8 @@
 /**
- * RAIL//AI Simulation State Factory
- * Generates unified, deterministic state derived directly from central train kinematics and infrastructure.
+ * RAIL//AI Simulation State Factory v2
+ * Generates unified, deterministic state derived from central train kinematics and infrastructure.
+ * Extended to support 30-train multi-network while preserving all existing state keys for Loco Pilot,
+ * Station Master, and Control Room pages.
  * Ready for future ML telemetry and prediction models.
  */
 
@@ -21,10 +23,19 @@ export function computeSimulationState(params = {}) {
     phase = 1,
     phaseProgress = 0,
     simTime = '14:20:00',
+    simTimeSec = null,
     activeCabTrainId = 'LOCAL_101',
     trainKinematics = {},
     eventLog = [],
-    departureEvaluation = {}
+    departureEvaluation = {},
+    // Multi-train network state (new in v2)
+    allTrains = null,
+    stationStates = null,
+    sectionStates = null,
+    conflicts = [],
+    networkMetrics = null,
+    activeScenario = null,
+    baselineSnapshot = null
   } = params;
 
   const scenario = scenarios[phase] || scenarios[1];
@@ -631,12 +642,28 @@ export function computeSimulationState(params = {}) {
     scenarioName: scenario.name,
     scenarioTitle: scenario.title,
     simulationTime: simTime,
+    simTimeSec,
+    // ── Legacy state keys (preserved for Loco Pilot / Station Master / Control Room) ──
     trains,
     stationData,
     network,
     locoPilotData,
     departureEvaluation,
     alerts: scenario.alerts,
-    eventLog
+    eventLog,
+    // ── Multi-train network state (v3) ──
+    allTrains: params.allTrains || allTrains || trains,
+    stationStates:  params.stationStates  || stationStates,
+    sectionStates:  params.sectionStates  || sectionStates,
+    signalStates:   params.signalStates   || {},
+    conflicts:      params.conflicts      || conflicts,
+    networkMetrics: params.networkMetrics || networkMetrics,
+    activeScenario: params.activeScenario || activeScenario,
+    baselineSnapshot: params.baselineSnapshot || baselineSnapshot,
+    // ── Loco Pilot live (v3) ──
+    cabTrain:           params.cabTrain           || null,
+    cabPrediction:      params.cabPrediction      || null,
+    activeCabTrainId:   params.activeCabTrainId   || activeCabTrainId,
+    locoPilotDecisions: params.locoPilotDecisions || {}
   };
 }

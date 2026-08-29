@@ -1,65 +1,98 @@
 import React, { useState } from 'react';
+import { useSimulation, useImpactAnalysis } from '../simulator/SimulationContext';
 import SimulatorHeader from '../components/simulator/SimulatorHeader';
 import SimulatorPhaseNav from '../components/simulator/SimulatorPhaseNav';
-import SimulatorSummaryBar from '../components/simulator/SimulatorSummaryBar';
-import RailwayCorridorDiagram from '../components/simulator/RailwayCorridorDiagram';
 import SimulatorTimeline from '../components/simulator/SimulatorTimeline';
 import SimulatorEventLog from '../components/simulator/SimulatorEventLog';
-import SimulatorCorridorStatus from '../components/simulator/SimulatorCorridorStatus';
 import SimulatorLegend from '../components/simulator/SimulatorLegend';
-import SimulatorInspectModal from '../components/simulator/SimulatorInspectModal';
+
+// New multi-train components
+import NetworkMetricsBar from '../components/simulator/NetworkMetricsBar';
+import NetworkTopologyDiagram from '../components/simulator/NetworkTopologyDiagram';
+import TrainInspectorPanel from '../components/simulator/TrainInspectorPanel';
+import ImpactAnalysisPanel from '../components/simulator/ImpactAnalysisPanel';
+
 import './Simulator.css';
 
 export default function Simulator() {
-  const [selectedEntity, setSelectedEntity] = useState(null);
+  const [selectedTrainId, setSelectedTrainId] = useState(null);
+  const { activeScenario, impactReport } = useImpactAnalysis();
+  const { controls } = useSimulation();
 
-  const handleSelectEntity = (entity) => {
-    setSelectedEntity(entity);
-  };
+  const affectedTrainIds = impactReport?.affectedTrains || [];
 
-  const handleCloseModal = () => {
-    setSelectedEntity(null);
-  };
+  function handleSelectTrain(train) {
+    if (!train) return;
+    // train may be a full object or just a string ID
+    const id = typeof train === 'string' ? train : train.id;
+    setSelectedTrainId(id);
+  }
+
+  function handleCloseInspector() {
+    setSelectedTrainId(null);
+  }
+
+  function handleApplyScenario(change) {
+    // Inspector already called controls.applyScenario
+    // We just keep the panel open for before/after view
+  }
 
   return (
     <div className="simulator-page">
       <div className="sim-page-container">
-        
-        {/* 1. Simulator Header */}
+
+        {/* 1. Simulator Header (preserved) */}
         <SimulatorHeader />
 
-        {/* 2. Phase Navigation Bar (5 Phases) */}
+        {/* 2. Phase Navigation (preserved, now controls 30-train network) */}
         <SimulatorPhaseNav />
 
-        {/* 3. Live Simulation Summary Row */}
-        <SimulatorSummaryBar />
+        {/* 3. Live Network Metrics Bar (replaces SimulatorSummaryBar) */}
+        <NetworkMetricsBar />
 
-        {/* 4. MAIN RAILWAY CORRIDOR — Horizontal Operational Track Diagram */}
-        <RailwayCorridorDiagram onSelectEntity={handleSelectEntity} />
+        {/* 4. Main Layout: Topology + Inspector/Impact side panel */}
+        <div className={`sim-main-layout ${selectedTrainId || activeScenario ? 'layout-with-panel' : ''}`}>
 
-        {/* 5. Phase Timeline */}
+          {/* Left: Network Topology */}
+          <div className="sim-topology-area">
+            <NetworkTopologyDiagram
+              onSelectTrain={handleSelectTrain}
+              selectedTrainId={selectedTrainId}
+              affectedTrainIds={affectedTrainIds}
+            />
+          </div>
+
+          {/* Right: Train Inspector + Impact Panel (slide in when train selected or scenario active) */}
+          {(selectedTrainId || activeScenario) && (
+            <div className="sim-inspector-area">
+              {selectedTrainId && (
+                <TrainInspectorPanel
+                  trainId={selectedTrainId}
+                  onClose={handleCloseInspector}
+                  onApplyScenario={handleApplyScenario}
+                />
+              )}
+              {activeScenario && (
+                <ImpactAnalysisPanel
+                  onSelectTrain={handleSelectTrain}
+                />
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 5. Phase Timeline (preserved) */}
         <SimulatorTimeline />
 
-        {/* 6. Lower Operational Split: Event Log + Corridor Status & Legend */}
+        {/* 6. Bottom Split: Event Log + Legend */}
         <div className="sim-bottom-split-grid">
-          
-          {/* Left Column: Chronological Event Log */}
           <div className="sim-split-left">
             <SimulatorEventLog />
           </div>
-
-          {/* Right Column: Corridor Telemetry Status & Legend */}
           <div className="sim-split-right">
-            <SimulatorCorridorStatus />
             <SimulatorLegend />
           </div>
-
         </div>
-
-        {/* Inspection Details Modal / Slide-in */}
-        {selectedEntity && (
-          <SimulatorInspectModal entity={selectedEntity} onClose={handleCloseModal} />
-        )}
 
       </div>
     </div>

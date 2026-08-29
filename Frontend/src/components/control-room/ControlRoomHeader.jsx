@@ -1,20 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 
-export default function ControlRoomHeader({ onResetSelection, selectedTrainId }) {
-  const [time, setTime] = useState('');
-
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      const h = String(now.getHours()).padStart(2, '0');
-      const m = String(now.getMinutes()).padStart(2, '0');
-      const s = String(now.getSeconds()).padStart(2, '0');
-      setTime(`${h}:${m}:${s} CEST`);
-    };
-    updateTime();
-    const timer = setInterval(updateTime, 1000);
-    return () => clearInterval(timer);
-  }, []);
+export default function ControlRoomHeader({ onResetSelection, selectedTrainId, simTime, phase }) {
 
   return (
     <div className="cr-header">
@@ -31,9 +17,10 @@ export default function ControlRoomHeader({ onResetSelection, selectedTrainId })
 
       <div className="cr-header-meta">
         <div className="cr-clock-box font-mono">
-          <span className="cr-clock-label">SYSTEM TIME (UTC+2)</span>
-          <span className="cr-clock-val">{time || '14:28:34 CEST'}</span>
+          <span className="cr-clock-label">SIM TIME</span>
+          <span className="cr-clock-val">{simTime || '14:20:00'}</span>
         </div>
+        {phase && <span className="cr-phase-chip font-mono">PHASE {phase}</span>}
 
         {selectedTrainId && (
           <button className="cr-clear-selection-btn font-mono" onClick={onResetSelection}>
