@@ -128,6 +128,10 @@ class RiskEngine:
             "related_train_ids": [train_id] if train_id != "UNKNOWN_TRAIN" else [],
             "related_events": related_events,
             "status": "ACTIVE",
+            "acknowledged": False,
+            "escalated": False,
+            "escalation_timestamp": None,
+            "escalation_timeout": 15.0,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
 

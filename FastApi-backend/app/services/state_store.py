@@ -128,9 +128,15 @@ class StateStore:
         return list(self.alerts.values())
 
     def acknowledge_alert(self, alert_id: str) -> Optional[Dict[str, Any]]:
+        from app.services.escalation_manager import escalation_manager
         if alert_id in self.alerts:
             self.alerts[alert_id]["status"] = "ACKNOWLEDGED"
+            self.alerts[alert_id]["acknowledged"] = True
+            self.alerts[alert_id]["escalated"] = False
             self.alerts[alert_id]["acknowledged_at"] = datetime.now(timezone.utc).isoformat()
+            
+            # Cancel active escalation timer if running
+            escalation_manager.cancel_escalation(alert_id)
             return self.alerts[alert_id]
         return None
 
