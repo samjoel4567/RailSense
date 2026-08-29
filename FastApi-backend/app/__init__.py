@@ -1,0 +1,3 @@
+"""
+TrainSense FastAPI application package.
+"""
