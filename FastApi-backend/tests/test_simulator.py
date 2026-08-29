@@ -17,50 +17,51 @@ from app.main import app
 from app.services.simulator import simulator, TelemetrySimulator
 from app.services.state_store import state_store
 
-client = TestClient(app)
-
 
 def test_simulator_pipeline():
     print("==================================================")
     print("TrainSense Telemetry Simulator Test (Steps 56-58)")
     print("==================================================")
 
-    # 1. Test GET /simulation/status
-    res_status = client.get("/simulation/status")
-    assert res_status.status_code == 200
-    data_status = res_status.json()
-    assert "is_running" in data_status
-    print("GET /simulation/status PASSED:", data_status)
+    state_store.clear()
 
-    # 2. Test POST /simulation/start
-    res_start = client.post("/simulation/start?interval_seconds=1.0")
-    assert res_start.status_code == 200
-    data_start = res_start.json()
-    assert data_start["status"]["is_running"] is True
-    print("POST /simulation/start PASSED:", data_start["message"])
+    with TestClient(app) as client:
+        # 1. Test GET /simulation/status
+        res_status = client.get("/simulation/status")
+        assert res_status.status_code == 200
+        data_status = res_status.json()
+        assert "is_running" in data_status
+        print("GET /simulation/status PASSED:", data_status)
 
-    # 3. Test POST /simulation/stop
-    res_stop = client.post("/simulation/stop")
-    assert res_stop.status_code == 200
-    data_stop = res_stop.json()
-    assert data_stop["status"]["is_running"] is False
-    print("POST /simulation/stop PASSED:", data_stop["message"])
+        # 2. Test POST /simulation/start
+        res_start = client.post("/simulation/start?interval_seconds=1.0")
+        assert res_start.status_code == 200
+        data_start = res_start.json()
+        assert data_start["status"]["is_running"] is True
+        print("POST /simulation/start PASSED:", data_start["message"])
 
-    # 4. Test End-to-End Multi-Modal Scenario Trigger
-    print("\nTriggering multi-modal high-risk conflict scenario...")
-    res_trig = client.post("/simulation/trigger-conflict")
-    assert res_trig.status_code == 200
-    data_trig = res_trig.json()
-    assert data_trig["result"]["scenario"] == "HIGH_RISK_CONFLICT_SCENARIO"
-    assert data_trig["result"]["status"] == "SUCCESS"
-    print("POST /simulation/trigger-conflict PASSED:", data_trig["message"])
+        # 3. Test POST /simulation/stop
+        res_stop = client.post("/simulation/stop")
+        assert res_stop.status_code == 200
+        data_stop = res_stop.json()
+        assert data_stop["status"]["is_running"] is False
+        print("POST /simulation/stop PASSED:", data_stop["message"])
 
-    # 5. Verify StateStore received updated train predictions and alerts
-    trains = state_store.get_trains()
-    alerts = state_store.get_alerts()
-    assert len(trains) >= 2
-    assert len(alerts) >= 1
-    print(f"End-to-End State Store Verification PASSED: {len(trains)} active trains, {len(alerts)} risk alerts.")
+        # 4. Test End-to-End Multi-Modal Scenario Trigger
+        print("\nTriggering multi-modal high-risk conflict scenario...")
+        res_trig = client.post("/simulation/trigger-conflict")
+        assert res_trig.status_code == 200
+        data_trig = res_trig.json()
+        assert data_trig["result"]["scenario"] == "HIGH_RISK_CONFLICT_SCENARIO"
+        assert data_trig["result"]["status"] == "SUCCESS"
+        print("POST /simulation/trigger-conflict PASSED:", data_trig["message"])
+
+        # 5. Verify StateStore received updated train predictions and alerts
+        trains = state_store.get_trains()
+        alerts = state_store.get_alerts()
+        assert len(trains) >= 2
+        assert len(alerts) >= 1
+        print(f"End-to-End State Store Verification PASSED: {len(trains)} active trains, {len(alerts)} risk alerts.")
 
     print("\n==================================================")
     print("[SIMULATOR TEST SUCCESS]: Telemetry simulator verified successfully!")

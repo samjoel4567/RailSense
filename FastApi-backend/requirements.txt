@@ -10,3 +10,4 @@ opencv-python
 python-dotenv
 httpx
 websockets
+pytest

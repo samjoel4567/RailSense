@@ -6,6 +6,7 @@ computes unified risk assessments using RiskEngine, and publishes correlated ALE
 
 from datetime import datetime, timezone
 import logging
+import re
 from typing import Any, Dict, List, Optional
 
 from app.event_bus import Event, EventBus, EventType, event_bus
@@ -52,13 +53,17 @@ class CorrelationEngine:
             temporal_diff_seconds=time_diff
         )
 
-    def _normalize_section_key(self, section: str) -> str:
-        """Normalizes section identifiers for cross-event matching."""
-        if not section:
+    def _normalize_section_key(self, section: Optional[str]) -> str:
+        """
+        Normalizes section identifiers for cross-event matching using generic pattern extraction.
+        Strips harmless status/location suffixes (e.g., -TRACK, -CLEAR) while preserving actual section identity.
+        """
+        if not section or not str(section).strip():
             return "MAIN_LINE"
-        sec = section.upper()
-        if "SEC-A1" in sec:
-            return "SEC-A1"
+        sec = str(section).strip().upper()
+        match = re.match(r'^([A-Z0-9]+-[A-Z0-9]+)(?:[-_].*)?$', sec)
+        if match:
+            return match.group(1)
         return sec
 
     async def handle_prediction_event(self, event: Event) -> Optional[Event]:

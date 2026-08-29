@@ -88,5 +88,10 @@ async def run_standalone_vision_test():
     print("==================================================")
 
 
+def test_vision_pipeline_end_to_end():
+    """Makes the standalone vision verification visible to pytest."""
+    asyncio.run(run_standalone_vision_test())
+
+
 if __name__ == "__main__":
     asyncio.run(run_standalone_vision_test())

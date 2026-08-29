@@ -129,16 +129,81 @@ async def run_standalone_correlation_test():
     assert tc2_alert["risk_score"] < 25.0, f"Expected risk_score < 25.0, got {tc2_alert['risk_score']}"
     assert tc2_alert["recommendation"] == "PROCEED", f"Expected PROCEED, got {tc2_alert['recommendation']}"
 
+    # ----------------------------------------------------
+    # TEST CASE 3: SECTION NORMALIZATION UNIT TESTS
+    # ----------------------------------------------------
+    print("\n--- [TEST CASE 3: SECTION NORMALIZATION UNIT TESTS] ---")
+    assert correlation_engine._normalize_section_key("SEC-A1-TRACK") == "SEC-A1"
+    assert correlation_engine._normalize_section_key("SEC-A1") == "SEC-A1"
+    assert correlation_engine._normalize_section_key("SEC-B2-CLEAR") == "SEC-B2"
+    assert correlation_engine._normalize_section_key("SEC-B2-TRACK") == "SEC-B2"
+    assert correlation_engine._normalize_section_key(None) == "MAIN_LINE"
+    assert correlation_engine._normalize_section_key("") == "MAIN_LINE"
+    assert correlation_engine._normalize_section_key("   ") == "MAIN_LINE"
+    print("Section Normalization Unit Tests PASSED: SEC-A1-TRACK -> SEC-A1, SEC-B2-CLEAR -> SEC-B2, None -> MAIN_LINE")
+
+    # ----------------------------------------------------
+    # TEST CASE 4: SECTION ISOLATION (SEC-A1 vs SEC-B2 NO CROSS-CORRELATION)
+    # ----------------------------------------------------
+    print("\n--- [TEST CASE 4: SECTION ISOLATION (SEC-A1 vs SEC-B2)] ---")
+    correlation_engine.prediction_cache.clear()
+    correlation_engine.vision_cache.clear()
+    received_risk_alerts.clear()
+
+    # 1. Publish prediction on SEC-A1-TRACK
+    await bus.publish(Event(event_type=EventType.PREDICTION, data={
+        "train_id": "LOCAL-101",
+        "conflict_probability": 0.90,
+        "potential_conflict": True,
+        "section": "SEC-A1-TRACK",
+        "timestamp": "2026-08-29T17:50:00+00:00"
+    }))
+
+    # 2. Publish vision intrusion on SEC-B2-TRACK (different section!)
+    await bus.publish(Event(event_type=EventType.VISION_DETECTION, data={
+        "object_type": "person",
+        "confidence": 0.88,
+        "section": "SEC-B2-TRACK",
+        "severity": "CRITICAL",
+        "timestamp": "2026-08-29T17:50:00+00:00"
+    }))
+
+    # Retrieve vision alert generated for SEC-B2-TRACK
+    b2_alert = received_risk_alerts[-1].data
+    assert b2_alert["section"] == "SEC-B2-TRACK"
+    # Should NOT be correlated with LOCAL-101 on SEC-A1-TRACK
+    assert b2_alert["alert_type"] == "ISOLATED_VISION_INTRUSION", f"Expected ISOLATED_VISION_INTRUSION, got {b2_alert['alert_type']}"
+    
+    # 3. Now publish vision intrusion on SEC-A1-TRACK (matching section!)
+    await bus.publish(Event(event_type=EventType.VISION_DETECTION, data={
+        "object_type": "person",
+        "confidence": 0.88,
+        "section": "SEC-A1-TRACK",
+        "severity": "CRITICAL",
+        "timestamp": "2026-08-29T17:50:01+00:00"
+    }))
+    
+    a1_alert = received_risk_alerts[-1].data
+    assert a1_alert["section"] == "SEC-A1-TRACK"
+    assert a1_alert["alert_type"] == "CORRELATED_TRACK_INTRUSION", f"Expected CORRELATED_TRACK_INTRUSION, got {a1_alert['alert_type']}"
+    
+    print("Section Isolation Verification PASSED: SEC-A1 events correlate ONLY with SEC-A1 events, SEC-B2 with SEC-B2!")
+
     print("\n==================================================")
     print("Event Bus Delivery Verification:")
     print("--------------------------------------------------")
-    print(f"Delivered Alert Event ID : {received_risk_alerts[0].event_id}")
-    print(f"Delivered Event Type     : {received_risk_alerts[0].event_type}")
+    print(f"Delivered Alert Event ID : {received_risk_alerts[-1].event_id}")
+    print(f"Delivered Event Type     : {received_risk_alerts[-1].event_type}")
     print("[EVENT BUS VERIFICATION PASSED]: Correlated risk alerts successfully delivered over Event Bus!")
 
     print("\n==================================================")
     print("[CORRELATION & RISK ENGINE SUCCESS]: All test cases passed successfully!")
     print("==================================================")
+
+
+def test_correlation_engine_end_to_end():
+    """Makes the standalone correlation verification visible to pytest."""
+    asyncio.run(run_standalone_correlation_test())
 
 
 if __name__ == "__main__":

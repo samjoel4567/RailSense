@@ -1,6 +1,6 @@
 """
-TrainSense FastAPI API Router
-Defines REST API endpoints (/health, /trains, /alerts, /dashboard, /alerts/{id}/acknowledge, /simulation/*, /demo/*)
+TrainSense FastAPI API Router (Steps 15 & 16)
+Defines REST API endpoints (/health, /trains, /predictions, /predictions/{train_id}, /alerts, /dashboard, /alerts/{id}/acknowledge, /simulation/*, /demo/*)
 and WebSocket real-time telemetry endpoint (/ws).
 """
 
@@ -22,7 +22,7 @@ async def get_health() -> Dict[str, Any]:
     return {
         "status": "healthy",
         "service": "TrainSense Backend API",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "event_bus": "active",
         "ml_model": "loaded",
         "websocket": "active",
@@ -34,6 +34,26 @@ async def get_health() -> Dict[str, Any]:
 async def get_trains() -> List[Dict[str, Any]]:
     """Returns real-time telemetry and ML predictions for all active trains."""
     return state_store.get_trains()
+
+
+@router.get("/predictions", summary="Get All Active ML Predictions")
+async def get_predictions() -> List[Dict[str, Any]]:
+    """Returns real-time ML operational predictions (ETA, delay, conflict probability, action) for active trains."""
+    return state_store.get_predictions()
+
+
+@router.get("/predictions/{train_id}", summary="Get ML Prediction for Specific Train")
+async def get_train_prediction(
+    train_id: str = Path(..., description="Train ID identifier (e.g. LOCAL-101)")
+) -> Dict[str, Any]:
+    """Returns ML operational prediction for a specific train."""
+    pred = state_store.get_prediction(train_id)
+    if not pred:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No active ML prediction found for train '{train_id}'."
+        )
+    return pred
 
 
 @router.get("/alerts", summary="Get Operational Risk Alerts")
@@ -97,9 +117,19 @@ async def stop_simulation() -> Dict[str, Any]:
     }
 
 
-@router.post("/simulation/trigger-conflict", summary="Trigger High-Risk Demo Conflict Scenario")
+@router.post("/simulation/trigger-normal", summary="Trigger Scenario A: Normal Operation Scenario")
+async def trigger_normal_scenario() -> Dict[str, Any]:
+    """Triggers Scenario A: Normal clear-track railway operational telemetry."""
+    result = await simulator.trigger_normal_scenario()
+    return {
+        "message": "Scenario A: Normal operations scenario triggered successfully.",
+        "result": result
+    }
+
+
+@router.post("/simulation/trigger-conflict", summary="Trigger Scenario B/C: High-Risk Conflict Scenario")
 async def trigger_conflict_scenario() -> Dict[str, Any]:
-    """Triggers the primary TrainSense multi-modal conflict & vision intrusion scenario."""
+    """Triggers Scenario B/C: High-risk multi-modal conflict & vision intrusion scenario."""
     result = await simulator.trigger_high_risk_conflict_scenario()
     return {
         "message": "High-risk conflict scenario triggered successfully.",

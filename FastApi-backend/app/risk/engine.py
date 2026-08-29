@@ -32,7 +32,7 @@ class RiskEngine:
         ml_conflict = bool(prediction.get("potential_conflict", False)) if prediction else False
         ml_rec = prediction.get("recommendation", "PROCEED") if prediction else "PROCEED"
         train_id = prediction.get("train_id", "UNKNOWN_TRAIN") if prediction else "UNKNOWN_TRAIN"
-        section = prediction.get("section", vision.get("section", "MAIN_LINE") if vision else "MAIN_LINE")
+        section = (prediction.get("section") if prediction else None) or (vision.get("section") if vision else None) or "MAIN_LINE"
 
         vision_obj = str(vision.get("object_type", "NONE")).lower() if vision else "none"
         vision_conf = float(vision.get("confidence", 0.0)) if vision else 0.0
@@ -128,10 +128,6 @@ class RiskEngine:
             "related_train_ids": [train_id] if train_id != "UNKNOWN_TRAIN" else [],
             "related_events": related_events,
             "status": "ACTIVE",
-            "acknowledged": False,
-            "escalated": False,
-            "escalation_timestamp": None,
-            "escalation_timeout": 15.0,
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
 

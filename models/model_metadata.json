@@ -1,53 +1,116 @@
 {
-  "raw_features": [
-    "train_speed",
-    "current_delay",
-    "previous_delay",
-    "section_occupancy",
-    "headway",
-    "train_priority",
-    "distance_to_next_station",
-    "time_of_day",
-    "weather_condition"
-  ],
-  "encoded_feature_names": [
-    "train_speed",
-    "current_delay",
-    "previous_delay",
-    "section_occupancy",
-    "headway",
-    "distance_to_next_station",
-    "time_of_day",
+  "feature_columns": [
+    "current_speed_kmh",
+    "current_delay_min",
+    "distance_to_next_station_km",
+    "current_position_km",
+    "distance_remaining_km",
+    "estimated_running_time_min",
+    "delay_ratio",
     "train_priority_EXPRESS",
     "train_priority_FREIGHT",
+    "train_priority_HIGH_SPEED",
     "train_priority_PASSENGER",
+    "has_train_ahead",
+    "distance_to_ahead_train_km",
+    "ahead_train_speed_kmh",
+    "ahead_train_eta_min",
+    "expected_clearance_time_min",
+    "relative_speed_kmh",
+    "closing_speed_kmh",
+    "time_to_close_gap_min",
+    "headway_margin_min",
+    "signal_code",
+    "current_headway_min",
+    "safe_required_headway_min",
+    "platform_available",
+    "speed_restriction_kmh",
+    "junction_busy",
+    "route_blocked",
+    "section_occupancy",
+    "time_of_day",
     "weather_condition_CLEAR",
     "weather_condition_FOG",
     "weather_condition_RAIN",
-    "weather_condition_STORM"
+    "weather_condition_STORM",
+    "speed_mean",
+    "speed_std",
+    "speed_trend",
+    "position_progress_rate",
+    "delay_mean",
+    "delay_std",
+    "delay_trend"
   ],
-  "categorical_columns": [
-    "train_priority",
-    "weather_condition"
+  "encoded_feature_names": [
+    "current_speed_kmh",
+    "current_delay_min",
+    "distance_to_next_station_km",
+    "current_position_km",
+    "distance_remaining_km",
+    "estimated_running_time_min",
+    "delay_ratio",
+    "train_priority_EXPRESS",
+    "train_priority_FREIGHT",
+    "train_priority_HIGH_SPEED",
+    "train_priority_PASSENGER",
+    "has_train_ahead",
+    "distance_to_ahead_train_km",
+    "ahead_train_speed_kmh",
+    "ahead_train_eta_min",
+    "expected_clearance_time_min",
+    "relative_speed_kmh",
+    "closing_speed_kmh",
+    "time_to_close_gap_min",
+    "headway_margin_min",
+    "signal_code",
+    "current_headway_min",
+    "safe_required_headway_min",
+    "platform_available",
+    "speed_restriction_kmh",
+    "junction_busy",
+    "route_blocked",
+    "section_occupancy",
+    "time_of_day",
+    "weather_condition_CLEAR",
+    "weather_condition_FOG",
+    "weather_condition_RAIN",
+    "weather_condition_STORM",
+    "speed_mean",
+    "speed_std",
+    "speed_trend",
+    "position_progress_rate",
+    "delay_mean",
+    "delay_std",
+    "delay_trend"
   ],
-  "categorical_categories": {
-    "train_priority": [
-      "EXPRESS",
-      "FREIGHT",
-      "PASSENGER"
-    ],
-    "weather_condition": [
-      "CLEAR",
-      "FOG",
-      "RAIN",
-      "STORM"
-    ]
+  "feature_count": 40,
+  "models": {
+    "conflict_classifier": {
+      "algorithm": "XGBClassifier",
+      "target": "conflict",
+      "metrics": {
+        "accuracy": 0.8033333333333333,
+        "precision": 0.7619760479041916,
+        "recall": 0.6192214111922141,
+        "f1_score": 0.6832214765100671
+      }
+    },
+    "delay_regressor": {
+      "algorithm": "XGBRegressor",
+      "target": "expected_delay_min",
+      "metrics": {
+        "mae_min": 1.9854847825869608,
+        "rmse_min": 2.560145235373224,
+        "r2_score": 0.900405286378447
+      }
+    }
   },
-  "target": "conflict",
   "metrics": {
-    "accuracy": 0.757,
-    "precision": 0.6719160104986877,
-    "recall": 0.6844919786096256,
-    "f1_score": 0.6781456953642384
+    "accuracy": 0.8033333333333333,
+    "precision": 0.7619760479041916,
+    "recall": 0.6192214111922141,
+    "f1_score": 0.6832214765100671,
+    "delay_mae": 1.9854847825869608,
+    "delay_r2": 0.900405286378447
   }
 }

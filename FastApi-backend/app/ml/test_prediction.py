@@ -1,6 +1,10 @@
 """
-Standalone Prediction Test for TrainSense (Steps 31–34)
-Tests prediction pipeline, conflict detection, decision engine, and Event Bus integration.
+TrainSense ML Prediction & Feature Engineering Test Suite (Step 19)
+Verifies:
+1. Feature Engineering (ordering, history extraction, missing data handling, confidence scoring)
+2. Dual Model Inference (ETA, expected delay, conflict probability, confidence, action, time saved, reasoning)
+3. Operational Scenarios (Normal vs High-Risk Conflict vs Rule-Based Interlocking Overrides)
+4. EventBus Subscriptions (TRAIN_UPDATE -> ML Inference -> PREDICTION event)
 """
 
 import asyncio
@@ -11,107 +15,167 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from app.event_bus import Event, EventBus, EventType
+from app.ml.features import (
+    FEATURE_COLUMNS,
+    build_feature_dict,
+    build_feature_vector,
+    calculate_prediction_confidence,
+    extract_history_features
+)
 from app.ml.predict import PredictionService, attach_prediction_service_to_bus
 
 
 async def run_standalone_prediction_test():
     print("==================================================")
-    print("TrainSense Standalone Prediction Test (Steps 31-34)")
+    print("TrainSense Upgraded ML Prediction & Feature Test")
     print("==================================================")
 
-    # 1. Initialize Prediction Service (Loads trained XGBoost model & metadata without retraining)
+    # ----------------------------------------------------
+    # 1. FEATURE ENGINEERING TESTS
+    # ----------------------------------------------------
+    print("\n--- [TEST GROUP 1: FEATURE ENGINEERING LAYER] ---")
+    
+    # 1.1 History feature summary & trend calculations
+    speed_hist = [42.0, 44.0, 43.0, 41.0, 39.0]
+    pos_hist = [102.1, 102.8, 103.5, 104.1, 104.6]
+    delay_hist = [5.0, 5.5, 6.0, 7.0, 8.0]
+
+    hist_feats = extract_history_features(
+        speed_history=speed_hist,
+        position_history=pos_hist,
+        delay_history=delay_hist
+    )
+    print("Extracted History Features:")
+    for k, v in hist_feats.items():
+        print(f"  {k:<25}: {v}")
+
+    assert hist_feats["speed_mean"] == 41.8, f"Expected 41.8, got {hist_feats['speed_mean']}"
+    assert hist_feats["speed_trend"] == -3.0, f"Expected -3.0, got {hist_feats['speed_trend']}"
+    assert hist_feats["delay_mean"] == 6.3, f"Expected 6.3, got {hist_feats['delay_mean']}"
+    assert hist_feats["delay_trend"] == 3.0, f"Expected 3.0, got {hist_feats['delay_trend']}"
+    assert hist_feats["position_progress_rate"] > 0.0
+
+    # 1.2 Missing history handling
+    empty_hist = extract_history_features(speed_history=[], fallback_speed=75.0, fallback_delay=4.0)
+    assert empty_hist["speed_mean"] == 75.0
+    assert empty_hist["speed_trend"] == 0.0
+    assert empty_hist["delay_mean"] == 4.0
+
+    # 1.3 Feature vector schema & ordering
+    raw_sample = {
+        "train_id": "LOCAL-101",
+        "speed": 55.0,
+        "current_delay": 8.0,
+        "has_train_ahead": True,
+        "distance_to_ahead_train_km": 2.5,
+        "ahead_train_speed_kmh": 30.0,
+        "current_signal": "YELLOW",
+        "current_headway_min": 2.2,
+        "speed_history": [60.0, 58.0, 55.0],
+        "delay_history": [6.0, 7.0, 8.0]
+    }
+    feat_df = build_feature_vector(raw_sample)
+    assert list(feat_df.columns) == FEATURE_COLUMNS, "Feature vector columns do not match FEATURE_COLUMNS single source of truth"
+    assert feat_df.shape == (1, len(FEATURE_COLUMNS)), f"Expected shape (1, {len(FEATURE_COLUMNS)}), got {feat_df.shape}"
+    print(f"Feature Vector Verification PASSED ({len(FEATURE_COLUMNS)} features)")
+
+    # 1.4 Dynamic confidence score calculation
+    conf_complete = calculate_prediction_confidence(raw_sample, conflict_probability=0.85)
+    conf_missing = calculate_prediction_confidence({"speed": 55.0}, conflict_probability=0.50)
+    assert conf_complete > conf_missing, f"Expected complete data confidence ({conf_complete}) > missing data confidence ({conf_missing})"
+    print(f"Confidence score verification PASSED (Complete: {conf_complete}, Missing: {conf_missing})")
+
+    # ----------------------------------------------------
+    # 2. DUAL MODEL INFERENCE & SCENARIO TESTS
+    # ----------------------------------------------------
+    print("\n--- [TEST GROUP 2: DUAL ML MODEL INFERENCE] ---")
     service = PredictionService()
 
-    # ----------------------------------------------------
-    # TEST CASE 1: HIGH CONFLICT
-    # ----------------------------------------------------
-    print("\n--- [TEST CASE 1: HIGH CONFLICT] ---")
-    high_conflict_input = {
+    # Scenario A: Normal Operation
+    normal_input = {
+        "train_id": "EXPRESS-202",
+        "current_speed_kmh": 110.0,
+        "current_delay_min": 0.0,
+        "distance_to_next_station_km": 15.0,
+        "train_priority": "EXPRESS",
+        "current_signal": "GREEN",
+        "current_headway_min": 18.0,
+        "safe_required_headway_min": 3.0,
+        "platform_availability": "AVAILABLE",
+        "junction_status": "CLEAR",
+        "route_status": "NORMAL",
+        "has_train_ahead": False,
+        "speed_history": [110.0, 110.0, 110.0],
+        "delay_history": [0.0, 0.0, 0.0]
+    }
+    res_normal = service.predict(normal_input)
+    print("\nScenario A (Normal Operation) Prediction:")
+    print(f"  Conflict Probability   : {res_normal['conflict_probability']:.4f}")
+    print(f"  Expected Delay         : {res_normal['expected_delay_min']:.2f} min")
+    print(f"  Predicted ETA          : {res_normal['predicted_eta']}")
+    print(f"  Recommended Action     : {res_normal['recommended_action']}")
+    print(f"  Estimated Time Saved   : {res_normal['estimated_time_saved_min']:.1f} min")
+    print(f"  Prediction Confidence  : {res_normal['prediction_confidence']:.2f}")
+
+    assert res_normal["conflict_probability"] < 0.45, "Expected low conflict probability for normal scenario"
+    assert res_normal["recommended_action"] == "PROCEED", f"Expected PROCEED, got {res_normal['recommended_action']}"
+    assert res_normal["estimated_time_saved_min"] > 0.0
+    assert "predicted_eta" in res_normal and isinstance(res_normal["predicted_eta"], str)
+
+    # Scenario B: High-Risk Conflict
+    conflict_input = {
         "train_id": "LOCAL-101",
-        "train_speed": 45.0,
-        "current_delay": 15.0,
-        "previous_delay": 12.0,
-        "section_occupancy": 1,
-        "headway": 2.0,
+        "current_speed_kmh": 50.0,
+        "current_delay_min": 15.0,
+        "distance_to_next_station_km": 2.0,
         "train_priority": "LOCAL",
-        "distance_to_next_station": 1.5,
-        "time_of_day": 18.5,
+        "current_signal": "YELLOW",
+        "current_headway_min": 1.5,
+        "safe_required_headway_min": 3.0,
+        "junction_status": "BUSY",
+        "platform_availability": "LIMITED",
+        "has_train_ahead": True,
+        "distance_to_ahead_train_km": 1.0,
+        "ahead_train_speed_kmh": 20.0,
+        "speed_history": [55.0, 52.0, 50.0],
+        "delay_history": [10.0, 12.0, 15.0],
         "weather_condition": "FOG"
     }
+    res_conflict = service.predict(conflict_input)
+    print("\nScenario B (High-Risk Conflict) Prediction:")
+    print(f"  Conflict Probability   : {res_conflict['conflict_probability']:.4f}")
+    print(f"  Expected Delay         : {res_conflict['expected_delay_min']:.2f} min")
+    print(f"  Predicted ETA          : {res_conflict['predicted_eta']}")
+    print(f"  Recommended Action     : {res_conflict['recommended_action']}")
+    print(f"  Estimated Time Saved   : {res_conflict['estimated_time_saved_min']:.1f} min")
+    print(f"  Prediction Confidence  : {res_conflict['prediction_confidence']:.2f}")
+    print(f"  Reasoning              : {res_conflict['reasoning']}")
 
-    res1 = service.predict(
-        raw_features=high_conflict_input,
-        approaching_train_present=True,
-        approaching_train_priority="EXPRESS",
-        arrival_time_overlap=True
-    )
+    # Relationship assertions
+    assert res_conflict["conflict_probability"] > res_normal["conflict_probability"], "Conflict scenario must have higher conflict prob than normal scenario"
+    assert res_conflict["expected_delay_min"] > res_normal["expected_delay_min"], "Conflict scenario must have higher expected delay than normal scenario"
+    assert res_conflict["recommended_action"] == "HOLD", f"Expected HOLD, got {res_conflict['recommended_action']}"
+    assert res_conflict["estimated_time_saved_min"] > 0.0
 
-    print("Input Features:")
-    for k, v in high_conflict_input.items():
-        print(f"  {k:<25}: {v}")
-    print("\nPrediction Results:")
-    print(f"  Predicted Delay     : {res1['predicted_delay']} min")
-    print(f"  Conflict Probability: {res1['conflict_probability']:.4f}")
-    print(f"  Predicted ETA       : {res1['predicted_eta']}")
-    print(f"  Potential Conflict  : {res1['potential_conflict']}")
-    print(f"  Recommendation      : {res1['recommendation']}")
-
-    # Assertions for Test Case 1
-    assert res1["conflict_probability"] > 0.40, "Expected high conflict probability for Test Case 1"
-    assert res1["potential_conflict"] is True, "Expected potential_conflict = True for Test Case 1"
-    assert res1["recommendation"] == "HOLD LOCAL TRAIN", f"Expected HOLD LOCAL TRAIN, got {res1['recommendation']}"
-
-    # ----------------------------------------------------
-    # TEST CASE 2: LOW CONFLICT
-    # ----------------------------------------------------
-    print("\n--- [TEST CASE 2: LOW CONFLICT] ---")
-    low_conflict_input = {
-        "train_id": "EXPRESS-202",
-        "train_speed": 130.0,
-        "current_delay": 0.0,
-        "previous_delay": 0.0,
-        "section_occupancy": 0,
-        "headway": 25.0,
-        "train_priority": "EXPRESS",
-        "distance_to_next_station": 30.0,
-        "time_of_day": 10.0,
-        "weather_condition": "CLEAR"
-    }
-
-    res2 = service.predict(
-        raw_features=low_conflict_input,
-        approaching_train_present=False,
-        approaching_train_priority=None,
-        arrival_time_overlap=False
-    )
-
-    print("Input Features:")
-    for k, v in low_conflict_input.items():
-        print(f"  {k:<25}: {v}")
-    print("\nPrediction Results:")
-    print(f"  Predicted Delay     : {res2['predicted_delay']} min")
-    print(f"  Conflict Probability: {res2['conflict_probability']:.4f}")
-    print(f"  Predicted ETA       : {res2['predicted_eta']}")
-    print(f"  Potential Conflict  : {res2['potential_conflict']}")
-    print(f"  Recommendation      : {res2['recommendation']}")
-
-    # Assertions for Test Case 2
-    assert res2["conflict_probability"] < 0.40, "Expected low conflict probability for Test Case 2"
-    assert res2["potential_conflict"] is False, "Expected potential_conflict = False for Test Case 2"
-    assert res2["recommendation"] == "PROCEED", f"Expected PROCEED, got {res2['recommendation']}"
+    # Scenario C: Rule-Based Safety Override (RED Signal -> HOLD regardless of ML prob)
+    red_signal_input = dict(normal_input)
+    red_signal_input["current_signal"] = "RED"
+    res_red = service.predict(red_signal_input)
+    assert res_red["recommended_action"] == "HOLD", f"RED signal must trigger mandatory HOLD, got {res_red['recommended_action']}"
+    assert res_red["reasoning"]["safety_override"] is True
+    print("Rule-Based Safety Interlocking Override Verification PASSED (RED signal -> HOLD)")
 
     # ----------------------------------------------------
-    # TEST CASE 3: EVENT BUS INTEGRATION (Step 32)
+    # 3. EVENT BUS INTEGRATION TEST
     # ----------------------------------------------------
-    print("\n--- [TEST CASE 3: EVENT BUS INTEGRATION] ---")
+    print("\n--- [TEST GROUP 3: EVENT BUS INTEGRATION] ---")
     bus = EventBus()
     attach_prediction_service_to_bus(bus)
 
-    received_prediction_events = []
+    received_events = []
 
     async def prediction_subscriber(event: Event):
-        print(f"-> [EventBus Subscriber] Received {event.event_type} event: {event.data}")
-        received_prediction_events.append(event)
+        received_events.append(event)
 
     bus.subscribe(EventType.PREDICTION, prediction_subscriber)
 
@@ -119,30 +183,37 @@ async def run_standalone_prediction_test():
         event_type=EventType.TRAIN_UPDATE,
         data={
             "train_id": "LOCAL-101",
-            "section": "SEC-A1",
-            "train_speed": 50.0,
-            "current_delay": 12.0,
-            "section_occupancy": 1,
-            "headway": 3.0,
-            "train_priority": "LOCAL",
-            "approaching_train_present": True,
-            "approaching_train_priority": "EXPRESS"
+            "section": "SEC-A1-TRACK",
+            "current_speed_kmh": 45.0,
+            "current_delay_min": 14.0,
+            "current_signal": "YELLOW",
+            "current_headway_min": 1.8,
+            "has_train_ahead": True,
+            "distance_to_ahead_train_km": 1.2
         }
     )
 
-    print(f"Publishing TRAIN_UPDATE event to EventBus for train {telemetry_event.data['train_id']}...")
     await bus.publish(telemetry_event)
 
-    assert len(received_prediction_events) == 1, "Prediction event was not published to EventBus subscriber"
-    published_pred = received_prediction_events[0].data
-    assert published_pred["train_id"] == "LOCAL-101"
-    assert published_pred["potential_conflict"] is True
-    assert published_pred["recommendation"] == "HOLD LOCAL TRAIN"
-    print("Event Bus dispatch verification PASSED!")
+    assert len(received_events) == 1, "Expected 1 published PREDICTION event on EventBus"
+    pub_data = received_events[0].data
+    assert pub_data["train_id"] == "LOCAL-101"
+    assert "expected_delay_min" in pub_data
+    assert "conflict_probability" in pub_data
+    assert "recommended_action" in pub_data
+    assert "estimated_time_saved_min" in pub_data
+    assert "prediction_confidence" in pub_data
+    assert pub_data["recommended_action"] == "HOLD"
 
+    print("Event Bus Publish/Subscribe Verification PASSED!")
     print("\n==================================================")
-    print("[STEPS 31-34 SUCCESS]: All test cases passed successfully!")
+    print("ML PREDICTION PIPELINE VERIFICATION SUCCESS")
     print("==================================================")
+
+
+def test_prediction_pipeline_end_to_end():
+    """Makes verification visible to pytest."""
+    asyncio.run(run_standalone_prediction_test())
 
 
 if __name__ == "__main__":

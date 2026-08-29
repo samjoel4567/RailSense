@@ -1,10 +1,32 @@
+"""
+TrainSense Dual ML Model Training Pipeline (Steps 6, 7, 8, 18)
+Trains:
+1. XGBoost Conflict Classifier (Target: conflict) -> conflict_model.json
+2. XGBoost Expected Delay Regressor (Target: expected_delay_min) -> delay_model.json
+Saves models & metadata with single source of truth FEATURE_COLUMNS.
+"""
+
 import json
 import os
+import sys
+from typing import Any, Dict
 import numpy as np
 import pandas as pd
-from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precision_score, recall_score
+from sklearn.metrics import (
+    accuracy_score,
+    confusion_matrix,
+    f1_score,
+    mean_absolute_error,
+    mean_squared_error,
+    precision_score,
+    r2_score,
+    recall_score
+)
 from sklearn.model_selection import train_test_split
-from xgboost import XGBClassifier
+from xgboost import XGBClassifier, XGBRegressor
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+from app.ml.features import FEATURE_COLUMNS
 
 SEED = 42
 np.random.seed(SEED)
@@ -16,116 +38,141 @@ def train_and_evaluate():
     data_path = os.path.join(base_dir, "data/train_operations.csv")
 
     if not os.path.exists(data_path):
-        raise FileNotFoundError(f"Dataset not found at {data_path}. Please run generate_dataset.py first.")
+        raise FileNotFoundError(f"Dataset not found at {data_path}. Please run data_generator.py first.")
 
     print(f"Loading dataset from {data_path}...")
     df = pd.read_csv(data_path)
 
-    # 2. Select Features and Target
-    raw_feature_cols = [
-        "train_speed",
-        "current_delay",
-        "previous_delay",
-        "section_occupancy",
-        "headway",
-        "train_priority",
-        "distance_to_next_station",
-        "time_of_day",
-        "weather_condition"
-    ]
-    target_col = "conflict"
+    # 2. Extract feature matrix X and targets
+    X = df[FEATURE_COLUMNS]
+    y_conflict = df["conflict"]
+    y_delay = df["expected_delay_min"]
 
-    X_raw = df[raw_feature_cols]
-    y = df[target_col]
+    print(f"Total dataset samples: {len(X)} | Feature count: {len(FEATURE_COLUMNS)}")
 
-    # 3. Categorical Encoding (One-Hot Encoding with fixed schema alignment)
-    X_encoded = pd.get_dummies(X_raw, columns=["train_priority", "weather_condition"], dtype=int)
-    feature_names = list(X_encoded.columns)
-
-    # 4. Train / Test Split (80/20)
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_encoded, y, test_size=0.20, random_state=SEED, stratify=y
+    # 3. Train / Test Split (80/20)
+    X_train, X_test, y_conf_train, y_conf_test, y_del_train, y_del_test = train_test_split(
+        X, y_conflict, y_delay, test_size=0.20, random_state=SEED, stratify=y_conflict
     )
 
     print(f"Training samples: {len(X_train)} | Testing samples: {len(X_test)}")
-    print(f"Features used ({len(feature_names)}): {feature_names}")
 
-    # 5. Model Initialization & Training
-    model = XGBClassifier(
-        n_estimators=100,
+    # ----------------------------------------------------
+    # 4. Train Model A: Conflict Classifier (XGBoost)
+    # ----------------------------------------------------
+    print("\n--- Training Model 1: XGBoost Conflict Classifier ---")
+    conflict_model = XGBClassifier(
+        n_estimators=120,
         max_depth=5,
         learning_rate=0.08,
-        subsample=0.8,
-        colsample_bytree=0.8,
+        subsample=0.85,
+        colsample_bytree=0.85,
         random_state=SEED,
         eval_metric="logloss"
     )
+    conflict_model.fit(X_train, y_conf_train)
 
-    model.fit(X_train, y_train)
+    y_conf_pred = conflict_model.predict(X_test)
+    y_conf_proba = conflict_model.predict_proba(X_test)[:, 1]
 
-    # 6. Model Evaluation
-    y_pred = model.predict(X_test)
-    y_pred_proba = model.predict_proba(X_test)[:, 1]
+    acc = float(accuracy_score(y_conf_test, y_conf_pred))
+    prec = float(precision_score(y_conf_test, y_conf_pred))
+    rec = float(recall_score(y_conf_test, y_conf_pred))
+    f1 = float(f1_score(y_conf_test, y_conf_pred))
+    cm = confusion_matrix(y_conf_test, y_conf_pred)
 
-    acc = accuracy_score(y_test, y_pred)
-    prec = precision_score(y_test, y_pred)
-    rec = recall_score(y_test, y_pred)
-    f1 = f1_score(y_test, y_pred)
-    cm = confusion_matrix(y_test, y_pred)
+    print(f"Conflict Accuracy  : {acc:.4f}")
+    print(f"Conflict Precision : {prec:.4f}")
+    print(f"Conflict Recall    : {rec:.4f}")
+    print(f"Conflict F1 Score  : {f1:.4f}")
+    print(f"Confusion Matrix   :\n  TN: {cm[0][0]:<5} FP: {cm[0][1]:<5}\n  FN: {cm[1][0]:<5} TP: {cm[1][1]:<5}")
 
-    print("\n==================================================")
-    print("XGBoost TrainSense Model Performance Metrics")
-    print("==================================================")
-    print(f"Accuracy  : {acc:.4f}")
-    print(f"Precision : {prec:.4f}")
-    print(f"Recall    : {rec:.4f}")
-    print(f"F1 Score  : {f1:.4f}")
-    print("\nConfusion Matrix:")
-    print(f"  TN: {cm[0][0]:<5} FP: {cm[0][1]:<5}")
-    print(f"  FN: {cm[1][0]:<5} TP: {cm[1][1]:<5}")
-    print("==================================================")
+    # ----------------------------------------------------
+    # 5. Train Model B: Expected Delay Regressor (XGBoost)
+    # ----------------------------------------------------
+    print("\n--- Training Model 2: XGBoost Expected Delay Regressor ---")
+    delay_model = XGBRegressor(
+        n_estimators=100,
+        max_depth=5,
+        learning_rate=0.08,
+        subsample=0.85,
+        colsample_bytree=0.85,
+        random_state=SEED
+    )
+    delay_model.fit(X_train, y_del_train)
 
-    # 7. Model & Metadata Serialization
-    # Save artifacts in both backend/models/ and root models/ for flexible path access
+    y_del_pred = delay_model.predict(X_test)
+    mae = float(mean_absolute_error(y_del_test, y_del_pred))
+    rmse = float(np.sqrt(mean_squared_error(y_del_test, y_del_pred)))
+    r2 = float(r2_score(y_del_test, y_del_pred))
+
+    print(f"Delay MAE  : {mae:.2f} min")
+    print(f"Delay RMSE : {rmse:.2f} min")
+    print(f"Delay R2   : {r2:.4f}")
+
+    # ----------------------------------------------------
+    # 6. Model & Metadata Serialization
+    # ----------------------------------------------------
+    metadata: Dict[str, Any] = {
+        "feature_columns": FEATURE_COLUMNS,
+        "encoded_feature_names": FEATURE_COLUMNS,
+        "feature_count": len(FEATURE_COLUMNS),
+        "models": {
+            "conflict_classifier": {
+                "algorithm": "XGBClassifier",
+                "target": "conflict",
+                "metrics": {
+                    "accuracy": acc,
+                    "precision": prec,
+                    "recall": rec,
+                    "f1_score": f1
+                }
+            },
+            "delay_regressor": {
+                "algorithm": "XGBRegressor",
+                "target": "expected_delay_min",
+                "metrics": {
+                    "mae_min": mae,
+                    "rmse_min": rmse,
+                    "r2_score": r2
+                }
+            }
+        },
+        "metrics": {
+            "accuracy": acc,
+            "precision": prec,
+            "recall": rec,
+            "f1_score": f1,
+            "delay_mae": mae,
+            "delay_r2": r2
+        }
+    }
+
     model_dirs = [
         os.path.join(base_dir, "models"),
         os.path.abspath(os.path.join(base_dir, "../models"))
     ]
 
-    metadata = {
-        "raw_features": raw_feature_cols,
-        "encoded_feature_names": feature_names,
-        "categorical_columns": ["train_priority", "weather_condition"],
-        "categorical_categories": {
-            "train_priority": ["EXPRESS", "FREIGHT", "PASSENGER"],
-            "weather_condition": ["CLEAR", "FOG", "RAIN", "STORM"]
-        },
-        "target": target_col,
-        "metrics": {
-            "accuracy": float(acc),
-            "precision": float(prec),
-            "recall": float(rec),
-            "f1_score": float(f1)
-        }
-    }
-
     for target_dir in model_dirs:
         os.makedirs(target_dir, exist_ok=True)
-        model_path = os.path.join(target_dir, "conflict_model.json")
+        conf_path = os.path.join(target_dir, "conflict_model.json")
+        del_path = os.path.join(target_dir, "delay_model.json")
         meta_path = os.path.join(target_dir, "model_metadata.json")
         feat_meta_path = os.path.join(target_dir, "feature_metadata.json")
 
-        model.save_model(model_path)
+        conflict_model.save_model(conf_path)
+        delay_model.save_model(del_path)
+
         with open(meta_path, "w") as f:
             json.dump(metadata, f, indent=2)
         with open(feat_meta_path, "w") as f:
             json.dump(metadata, f, indent=2)
 
-        print(f"Saved model artifact     : {model_path}")
-        print(f"Saved model metadata     : {meta_path}")
-        print(f"Saved feature metadata   : {feat_meta_path}")
+        print(f"Saved conflict model artifact   : {conf_path}")
+        print(f"Saved delay model artifact      : {del_path}")
+        print(f"Saved model metadata            : {meta_path}")
 
-    print("\n[STEPS 28-30 COMPLETE]: Model trained, evaluated, and saved successfully!")
+    print("\n[TRAINING SUCCESS]: Dual XGBoost models trained and serialized successfully!")
 
 
 if __name__ == "__main__":

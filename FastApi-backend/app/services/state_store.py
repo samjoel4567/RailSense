@@ -1,5 +1,5 @@
 """
-TrainSense State Store Service
+TrainSense State Store Service (Steps 12, 15)
 Subscribes to Event Bus channels to maintain active in-memory operational state for REST API endpoints.
 """
 
@@ -20,6 +20,7 @@ class StateStore:
     def __init__(self, bus: EventBus = event_bus):
         self.bus = bus
         self.trains: Dict[str, Dict[str, Any]] = {}
+        self.predictions: Dict[str, Dict[str, Any]] = {}
         self.alerts: Dict[str, Dict[str, Any]] = {}
         self.latest_prediction: Optional[Dict[str, Any]] = None
         self.latest_vision_detection: Optional[Dict[str, Any]] = None
@@ -27,22 +28,36 @@ class StateStore:
         self._subscribe_to_events()
 
     def _seed_default_state(self):
-        """Seeds realistic default operational state for immediate dashboard API availability."""
+        """
+        Seeds clean baseline operational layout placeholders for UI startup.
+        No hardcoded fake ML predictions, conflict probabilities, or fake CRITICAL alerts are seeded.
+        Live alerts and predictions are populated dynamically via EventBus events.
+        """
         now_iso = datetime.now(timezone.utc).isoformat()
 
-        # Default sample trains
+        # Clean baseline train operational telemetry placeholders (no hardcoded predictions)
         self.trains["LOCAL-101"] = {
             "train_id": "LOCAL-101",
             "section": "SEC-A1-TRACK",
             "speed": 45.0,
-            "current_delay": 15.0,
-            "predicted_delay": 32.6,
-            "predicted_eta": now_iso,
-            "conflict_probability": 0.9157,
-            "potential_conflict": True,
-            "recommendation": "HOLD LOCAL TRAIN",
+            "current_speed_kmh": 45.0,
+            "current_delay": 0.0,
+            "current_delay_min": 0.0,
+            "predicted_delay": None,
+            "expected_delay_min": None,
+            "predicted_eta": None,
+            "conflict_probability": None,
+            "potential_conflict": False,
+            "prediction_confidence": None,
+            "recommended_action": "PROCEED",
+            "recommendation": "PROCEED",
+            "estimated_time_saved_min": None,
             "priority": "LOCAL",
-            "status": "ACTIVE",
+            "train_priority": "LOCAL",
+            "status": "OPERATIONAL",
+            "is_live": False,
+            "data_source": "DEMO_INITIAL",
+            "telemetry_type": "SIMULATED_PLACEHOLDER",
             "last_updated": now_iso
         }
 
@@ -50,34 +65,41 @@ class StateStore:
             "train_id": "EXPRESS-202",
             "section": "SEC-A1-TRACK",
             "speed": 130.0,
+            "current_speed_kmh": 130.0,
             "current_delay": 0.0,
-            "predicted_delay": 0.0,
-            "predicted_eta": now_iso,
-            "conflict_probability": 0.0659,
+            "current_delay_min": 0.0,
+            "predicted_delay": None,
+            "expected_delay_min": None,
+            "predicted_eta": None,
+            "conflict_probability": None,
             "potential_conflict": False,
+            "prediction_confidence": None,
+            "recommended_action": "PROCEED",
             "recommendation": "PROCEED",
+            "estimated_time_saved_min": None,
             "priority": "EXPRESS",
-            "status": "ACTIVE",
+            "train_priority": "EXPRESS",
+            "status": "OPERATIONAL",
+            "is_live": False,
+            "data_source": "DEMO_INITIAL",
+            "telemetry_type": "SIMULATED_PLACEHOLDER",
             "last_updated": now_iso
         }
 
-        # Default sample alert
-        sample_alert_id = "alert-sample-001"
-        self.alerts[sample_alert_id] = {
-            "alert_id": sample_alert_id,
-            "train_id": "LOCAL-101",
-            "section": "SEC-A1-TRACK",
-            "risk_score": 87.9,
-            "risk_level": "CRITICAL",
-            "alert_type": "CORRELATED_TRACK_INTRUSION",
-            "ml_probability": 0.9157,
-            "vision_object_type": "person",
-            "vision_confidence": 0.8814,
-            "explanation": "CORRELATED THREAT: High ML conflict probability (0.9157) and vision PERSON intrusion (0.8814) on section SEC-A1-TRACK.",
-            "recommendation": "HOLD LOCAL TRAIN",
-            "status": "ACTIVE",
-            "timestamp": now_iso
-        }
+        # Live dictionaries start strictly empty on startup
+        self.predictions = {}
+        self.alerts = {}
+        self.latest_prediction = None
+        self.latest_vision_detection = None
+
+    def clear(self):
+        """Clears all state and resets to initial clean startup state (useful for testing)."""
+        self.trains.clear()
+        self.predictions.clear()
+        self.alerts.clear()
+        self.latest_prediction = None
+        self.latest_vision_detection = None
+        self._seed_default_state()
 
     def _subscribe_to_events(self):
         """Registers EventBus handlers to update in-memory state in real time."""
@@ -93,6 +115,9 @@ class StateStore:
             if train_id not in self.trains:
                 self.trains[train_id] = {}
             self.trains[train_id].update(data)
+            self.trains[train_id]["is_live"] = True
+            self.trains[train_id]["data_source"] = "LIVE"
+            self.trains[train_id]["telemetry_type"] = "LIVE_TELEMETRY"
             self.trains[train_id]["last_updated"] = event.timestamp
 
     async def handle_prediction(self, event: Event):
@@ -100,15 +125,24 @@ class StateStore:
         train_id = data.get("train_id")
         self.latest_prediction = data
         if train_id:
+            self.predictions[train_id] = data
             if train_id not in self.trains:
                 self.trains[train_id] = {"train_id": train_id}
             self.trains[train_id].update({
-                "predicted_delay": data.get("predicted_delay"),
+                "predicted_delay": data.get("predicted_delay", data.get("expected_delay_min")),
+                "expected_delay_min": data.get("expected_delay_min", data.get("predicted_delay")),
                 "predicted_eta": data.get("predicted_eta"),
                 "conflict_probability": data.get("conflict_probability"),
                 "potential_conflict": data.get("potential_conflict"),
+                "prediction_confidence": data.get("prediction_confidence"),
+                "recommended_action": data.get("recommended_action"),
                 "recommendation": data.get("recommendation"),
+                "estimated_time_saved_min": data.get("estimated_time_saved_min"),
+                "reasoning": data.get("reasoning"),
                 "section": data.get("section", self.trains[train_id].get("section", "MAIN_LINE")),
+                "is_live": True,
+                "data_source": "LIVE",
+                "telemetry_type": "LIVE_TELEMETRY",
                 "last_updated": event.timestamp
             })
 
@@ -124,6 +158,12 @@ class StateStore:
     def get_trains(self) -> List[Dict[str, Any]]:
         return list(self.trains.values())
 
+    def get_predictions(self) -> List[Dict[str, Any]]:
+        return list(self.predictions.values())
+
+    def get_prediction(self, train_id: str) -> Optional[Dict[str, Any]]:
+        return self.predictions.get(train_id)
+
     def get_alerts(self) -> List[Dict[str, Any]]:
         return list(self.alerts.values())
 
@@ -134,7 +174,7 @@ class StateStore:
             self.alerts[alert_id]["acknowledged"] = True
             self.alerts[alert_id]["escalated"] = False
             self.alerts[alert_id]["acknowledged_at"] = datetime.now(timezone.utc).isoformat()
-            
+
             # Cancel active escalation timer if running
             escalation_manager.cancel_escalation(alert_id)
             return self.alerts[alert_id]
@@ -154,6 +194,7 @@ class StateStore:
             "critical_alerts_count": len(critical_alerts),
             "high_alerts_count": len(high_alerts),
             "active_trains": self.get_trains(),
+            "predictions": self.get_predictions(),
             "active_alerts": active_alerts,
             "latest_prediction": self.latest_prediction,
             "latest_vision_detection": self.latest_vision_detection,
