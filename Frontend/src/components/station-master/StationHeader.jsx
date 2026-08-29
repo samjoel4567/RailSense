@@ -1,11 +1,8 @@
 import React, { useState, useEffect } from 'react';
 
 export default function StationHeader({ 
-  stationName = 'STATION B',
-  junctionName = 'CENTRAL JUNCTION',
-  stationCode = 'STA-B',
   onResetSelection,
-  selectedPlatformId 
+  selectedEntity 
 }) {
   const [time, setTime] = useState('');
 
@@ -29,13 +26,17 @@ export default function StationHeader({
           <span className="sm-status-dot"></span>
           <span>SYSTEM STATUS: OPERATIONAL</span>
           <span className="sm-badge-divider">|</span>
-          <span>STATION MASTER DESK</span>
+          <span>CORRIDOR LIFECYCLE: STATION B → SECTION B → STATION C</span>
         </div>
+
         <div className="sm-title-row">
-          <h1 className="sm-title">{stationName}</h1>
-          <span className="sm-title-junction font-mono">// {junctionName}</span>
+          <h1 className="sm-title">STATION MASTER</h1>
+          <span className="sm-title-junction font-mono">// STATION B [CENTRAL JUNCTION]</span>
         </div>
-        <p className="sm-subtitle font-mono">INTERLOCKING NODE [{stationCode}] // PLATFORM CONTROLLER</p>
+        
+        <p className="sm-subtitle font-mono">
+          OPERATIONAL LIFECYCLE: STATION B PLATFORMS ➔ SECTION B (24.8 KM) ➔ STATION C PLATFORMS
+        </p>
       </div>
 
       <div className="sm-header-meta">
@@ -44,9 +45,9 @@ export default function StationHeader({
           <span className="sm-clock-val">{time || '14:28:45 CEST'}</span>
         </div>
 
-        {selectedPlatformId && (
+        {selectedEntity && (
           <button className="sm-clear-selection-btn font-mono" onClick={onResetSelection}>
-            <span>✕ Clear Selection ({selectedPlatformId})</span>
+            <span>✕ Clear Focus ({selectedEntity})</span>
           </button>
         )}
       </div>

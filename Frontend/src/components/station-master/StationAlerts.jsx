@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function StationAlerts({ 
   alerts = [], 
-  selectedAlertId, 
+  selectedEntity, 
   onSelectAlert 
 }) {
   const getSeverityBadgeClass = (severity) => {
@@ -23,16 +23,16 @@ export default function StationAlerts({
       <div className="cr-panel-header">
         <div className="cr-panel-title-group">
           <span className="cr-panel-indicator is-alert-indicator"></span>
-          <h3 className="cr-panel-title">STATION OPERATIONAL ALERTS</h3>
+          <h3 className="cr-panel-title">STATION & CORRIDOR OPERATIONAL ALERTS</h3>
           <span className="cr-panel-count font-mono">({alerts.length})</span>
         </div>
-        <span className="cr-panel-sub font-mono">PLATFORM & INTERLOCKING</span>
+        <span className="cr-panel-sub font-mono">STATION B ➔ SECTION B ➔ STATION C</span>
       </div>
 
       {/* Alerts List */}
       <div className="cr-alerts-list">
         {alerts.map((alert) => {
-          const isSelected = selectedAlertId === alert.id;
+          const isSelected = selectedEntity === alert.id || selectedEntity === alert.trainId;
           return (
             <div 
               key={alert.id}
@@ -78,7 +78,7 @@ export default function StationAlerts({
 
       {/* Footer */}
       <div className="cr-panel-footer font-mono">
-        <span>Station Master safety chimes synchronized with Central Corridor SIL-4 interlocking.</span>
+        <span>Click an alert to isolate its affected corridor station and platform blocks.</span>
       </div>
     </div>
   );

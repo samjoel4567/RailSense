@@ -2,18 +2,18 @@ import React, { useState } from 'react';
 
 export default function ArrivalsDepartures({ 
   items = [], 
-  selectedTrainId, 
+  selectedEntity, 
   onSelectTrain 
 }) {
-  const [filter, setFilter] = useState('ALL'); // 'ALL' | 'ARRIVALS' | 'DEPARTURES'
+  const [filter, setFilter] = useState('ALL'); // 'ALL' | 'SOUTHBOUND' | 'NORTHBOUND'
 
   const getStatusBadgeClass = (status) => {
     switch (status) {
       case 'DELAYED':
         return 'op-status-badge status-delayed';
-      case 'WARNING':
-        return 'op-status-badge status-warning';
-      case 'MINOR DELAY':
+      case 'IN SECTION B':
+        return 'op-status-badge status-in-transit';
+      case 'APPROACHING':
         return 'op-status-badge status-caution';
       case 'ON TIME':
       case 'NORMAL':
@@ -23,8 +23,8 @@ export default function ArrivalsDepartures({
   };
 
   const filteredItems = items.filter(item => {
-    if (filter === 'ARRIVALS') return item.direction === 'NORTHBOUND';
-    if (filter === 'DEPARTURES') return item.direction === 'SOUTHBOUND';
+    if (filter === 'SOUTHBOUND') return item.direction === 'Southbound';
+    if (filter === 'NORTHBOUND') return item.direction === 'Northbound';
     return true;
   });
 
@@ -34,8 +34,8 @@ export default function ArrivalsDepartures({
       <div className="cr-panel-header">
         <div className="cr-panel-title-group">
           <span className="cr-panel-indicator"></span>
-          <h3 className="cr-panel-title">ARRIVALS & DEPARTURES</h3>
-          <span className="cr-panel-count font-mono">({items.length} SCHEDULED)</span>
+          <h3 className="cr-panel-title">ARRIVALS & DEPARTURES (STATION B ➔ SECTION B ➔ STATION C)</h3>
+          <span className="cr-panel-count font-mono">({items.length} MOVEMENTS)</span>
         </div>
 
         {/* Filter Toggle */}
@@ -44,19 +44,19 @@ export default function ArrivalsDepartures({
             className={`filter-btn ${filter === 'ALL' ? 'is-active' : ''}`}
             onClick={() => setFilter('ALL')}
           >
-            All
+            All Movements
           </button>
           <button 
-            className={`filter-btn ${filter === 'ARRIVALS' ? 'is-active' : ''}`}
-            onClick={() => setFilter('ARRIVALS')}
+            className={`filter-btn ${filter === 'SOUTHBOUND' ? 'is-active' : ''}`}
+            onClick={() => setFilter('SOUTHBOUND')}
           >
-            Arrivals
+            Southbound (B ➔ C)
           </button>
           <button 
-            className={`filter-btn ${filter === 'DEPARTURES' ? 'is-active' : ''}`}
-            onClick={() => setFilter('DEPARTURES')}
+            className={`filter-btn ${filter === 'NORTHBOUND' ? 'is-active' : ''}`}
+            onClick={() => setFilter('NORTHBOUND')}
           >
-            Departures
+            Northbound (C ➔ B)
           </button>
         </div>
       </div>
@@ -67,6 +67,8 @@ export default function ArrivalsDepartures({
           <thead>
             <tr>
               <th>TRAIN ID</th>
+              <th>ORIGIN</th>
+              <th>DESTINATION</th>
               <th>PLATFORM</th>
               <th>DIRECTION</th>
               <th>ETA</th>
@@ -76,20 +78,19 @@ export default function ArrivalsDepartures({
           </thead>
           <tbody>
             {filteredItems.map((item) => {
-              const isSelected = selectedTrainId === item.trainId;
+              const isSelected = selectedEntity === item.trainId || selectedEntity === item.assignedPlatformId;
               return (
                 <tr 
                   key={item.trainId}
                   className={`cr-table-row ${isSelected ? 'is-selected-row' : ''} ${item.status === 'DELAYED' ? 'has-delay-row' : ''}`}
                   onClick={() => onSelectTrain && onSelectTrain(item.trainId)}
-                  title={`Click to isolate ${item.trainId}`}
+                  title={`Click to focus on ${item.trainId} in the B ➔ Section B ➔ C lifecycle`}
                 >
                   <td className="train-id-cell">
                     <span className="train-id-text">{item.trainId}</span>
-                    <span className={`type-tag type-${item.type.toLowerCase()}`}>
-                      {item.type}
-                    </span>
                   </td>
+                  <td className="train-station-cell">{item.origin}</td>
+                  <td className="train-station-cell">{item.destination}</td>
                   <td className="train-platform-cell">
                     <span className="plat-badge">{item.platform}</span>
                   </td>
@@ -115,7 +116,7 @@ export default function ArrivalsDepartures({
 
       {/* Footer */}
       <div className="cr-panel-footer font-mono">
-        <span>Station B dwell slots synchronized with Central Corridor Interlocking.</span>
+        <span>Click any train to track its exact physical position across Station B, Section B, and Station C.</span>
       </div>
     </div>
   );

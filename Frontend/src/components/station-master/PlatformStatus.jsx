@@ -1,14 +1,17 @@
 import React from 'react';
 
 export default function PlatformStatus({ 
-  platforms = [], 
-  selectedPlatformId, 
+  stationBPlatforms = [], 
+  stationCPlatforms = [], 
+  selectedEntity, 
   onSelectPlatform 
 }) {
   const getOccupancyClass = (state) => {
     switch (state) {
       case 'OCCUPIED':
         return 'plat-occupied';
+      case 'DEPARTING':
+        return 'plat-departing';
       case 'RESERVED':
         return 'plat-reserved';
       case 'CLEAR':
@@ -23,77 +26,153 @@ export default function PlatformStatus({
       <div className="cr-panel-header">
         <div className="cr-panel-title-group">
           <span className="cr-panel-indicator"></span>
-          <h3 className="cr-panel-title">PLATFORM STATUS</h3>
-          <span className="cr-panel-count font-mono">({platforms.length} BERTHS)</span>
+          <h3 className="cr-panel-title">PLATFORM OCCUPANCY (STATION B vs STATION C)</h3>
+          <span className="cr-panel-count font-mono">(6 BERTHS TOTAL)</span>
         </div>
-        <span className="cr-panel-sub font-mono">REAL-TIME BERTH OCCUPANCY</span>
+        <span className="cr-panel-sub font-mono">ORIGIN vs DESTINATION BERTH STATES</span>
       </div>
 
-      {/* Platform Cards List */}
-      <div className="sm-platforms-list">
-        {platforms.map((plat) => {
-          const isSelected = selectedPlatformId === plat.id;
-          return (
-            <div 
-              key={plat.id}
-              className={`sm-plat-item ${getOccupancyClass(plat.occupancyState)} ${isSelected ? 'is-selected-plat' : ''}`}
-              onClick={() => onSelectPlatform && onSelectPlatform(plat.id)}
-            >
-              {/* Top Row: Platform Num & State Badge */}
-              <div className="plat-item-top">
-                <div className="plat-num-group">
-                  <span className="plat-big-num font-mono">{plat.number}</span>
-                  <div className="plat-meta-lines">
-                    <span className="plat-name font-bold">{plat.name}</span>
-                    <span className="plat-track font-mono">{plat.assignedTrack}</span>
+      <div className="sm-dual-platform-sections">
+        
+        {/* =========================================================================
+            STATION B PLATFORMS GROUP
+            ========================================================================= */}
+        <div className="platform-station-group">
+          <div className="group-sub-header font-mono">
+            <span className="group-title">STATION B (ORIGIN PLATFORMS)</span>
+            <span className="group-count">3 PLATFORMS</span>
+          </div>
+
+          <div className="sm-platforms-list">
+            {stationBPlatforms.map((plat) => {
+              const isSelected = selectedEntity === plat.id || selectedEntity === plat.trainId;
+              return (
+                <div 
+                  key={plat.id}
+                  className={`sm-plat-item ${getOccupancyClass(plat.state)} ${isSelected ? 'is-selected-plat' : ''}`}
+                  onClick={() => onSelectPlatform && onSelectPlatform(plat.id, plat.trainId)}
+                >
+                  <div className="plat-item-top">
+                    <div className="plat-num-group">
+                      <span className="plat-big-num font-mono">{plat.number}</span>
+                      <div className="plat-meta-lines">
+                        <span className="plat-name font-bold">Station B - {plat.name}</span>
+                        <span className="plat-track font-mono">{plat.assignedTrack}</span>
+                      </div>
+                    </div>
+
+                    <div className={`plat-state-badge font-mono ${getOccupancyClass(plat.state)}`}>
+                      <span className="plat-state-dot"></span>
+                      <span>{plat.state}</span>
+                    </div>
+                  </div>
+
+                  <div className="plat-detail-box font-mono">
+                    {plat.state === 'OCCUPIED' && (
+                      <div className="plat-train-assigned">
+                        <span className="assigned-label">OCCUPIED BY:</span>
+                        <span className="assigned-train text-amber font-bold">{plat.trainId} ({plat.trainType}) ➔ {plat.destination}</span>
+                        <span className="assigned-note">DWELL TIME: +{plat.dwellMinutes}m (DELAYED)</span>
+                      </div>
+                    )}
+                    {plat.state === 'DEPARTING' && (
+                      <div className="plat-train-assigned">
+                        <span className="assigned-label">DEPARTED INTO SECTION B:</span>
+                        <span className="assigned-train text-green font-bold">{plat.trainId} ({plat.trainType}) ➔ {plat.destination}</span>
+                        <span className="assigned-note">SECTION B TRANSIT ACTIVE</span>
+                      </div>
+                    )}
+                    {plat.state === 'CLEAR' && (
+                      <div className="plat-train-assigned">
+                        <span className="assigned-label">STANDBY STATUS:</span>
+                        <span className="assigned-train text-muted">TRACK VACANT & CLEAR</span>
+                        <span className="assigned-note">AVAILABLE FOR INBOUND TRAFFIC</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="plat-specs-row font-mono">
+                    <span>LENGTH: {plat.lengthMeters}M</span>
+                    <span>SIGNAL: {plat.signalId} [{plat.signalAspect}]</span>
                   </div>
                 </div>
+              );
+            })}
+          </div>
+        </div>
 
-                <div className={`plat-state-badge font-mono ${getOccupancyClass(plat.occupancyState)}`}>
-                  <span className="plat-state-dot"></span>
-                  <span>{plat.occupancyState}</span>
+        {/* =========================================================================
+            STATION C PLATFORMS GROUP
+            ========================================================================= */}
+        <div className="platform-station-group">
+          <div className="group-sub-header font-mono">
+            <span className="group-title">STATION C (DESTINATION PLATFORMS)</span>
+            <span className="group-count">3 PLATFORMS</span>
+          </div>
+
+          <div className="sm-platforms-list">
+            {stationCPlatforms.map((plat) => {
+              const isSelected = selectedEntity === plat.id || selectedEntity === plat.reservedForTrainId || selectedEntity === plat.trainId;
+              return (
+                <div 
+                  key={plat.id}
+                  className={`sm-plat-item ${getOccupancyClass(plat.state)} ${isSelected ? 'is-selected-plat' : ''}`}
+                  onClick={() => onSelectPlatform && onSelectPlatform(plat.id, plat.reservedForTrainId || plat.trainId)}
+                >
+                  <div className="plat-item-top">
+                    <div className="plat-num-group">
+                      <span className="plat-big-num font-mono">{plat.number}</span>
+                      <div className="plat-meta-lines">
+                        <span className="plat-name font-bold">Station C - {plat.name}</span>
+                        <span className="plat-track font-mono">{plat.assignedTrack}</span>
+                      </div>
+                    </div>
+
+                    <div className={`plat-state-badge font-mono ${getOccupancyClass(plat.state)}`}>
+                      <span className="plat-state-dot"></span>
+                      <span>{plat.state}</span>
+                    </div>
+                  </div>
+
+                  <div className="plat-detail-box font-mono">
+                    {plat.state === 'RESERVED' && (
+                      <div className="plat-train-assigned">
+                        <span className="assigned-label">PRE-RESERVED FOR:</span>
+                        <span className="assigned-train text-blue font-bold">{plat.reservedForTrainId} (FROM SECTION B)</span>
+                        <span className="assigned-note">ETA: 8 MIN // ROUTE SECURED</span>
+                      </div>
+                    )}
+                    {plat.state === 'OCCUPIED' && (
+                      <div className="plat-train-assigned">
+                        <span className="assigned-label">OCCUPIED BY:</span>
+                        <span className="assigned-train text-green font-bold">{plat.trainId} ({plat.trainType}) ➔ {plat.destination}</span>
+                        <span className="assigned-note">BOARDING // DEPART 14:47</span>
+                      </div>
+                    )}
+                    {plat.state === 'CLEAR' && (
+                      <div className="plat-train-assigned">
+                        <span className="assigned-label">STANDBY STATUS:</span>
+                        <span className="assigned-train text-muted">TRACK VACANT & CLEAR</span>
+                        <span className="assigned-note">AVAILABLE FOR DIVERSIONS</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="plat-specs-row font-mono">
+                    <span>LENGTH: {plat.lengthMeters}M</span>
+                    <span>SIGNAL: {plat.signalId} [{plat.signalAspect}]</span>
+                  </div>
                 </div>
-              </div>
+              );
+            })}
+          </div>
+        </div>
 
-              {/* Middle Row: Train / Activity Detail */}
-              <div className="plat-detail-box font-mono">
-                {plat.occupancyState === 'OCCUPIED' && (
-                  <div className="plat-train-assigned">
-                    <span className="assigned-label">CURRENT BERTH:</span>
-                    <span className="assigned-train text-amber font-bold">{plat.currentTrainId} ({plat.trainType})</span>
-                    <span className="assigned-note">DWELL TIME: {plat.dwellTimeCurrentSec}s / 90s</span>
-                  </div>
-                )}
-                {plat.occupancyState === 'RESERVED' && (
-                  <div className="plat-train-assigned">
-                    <span className="assigned-label">APPROACHING INBOUND:</span>
-                    <span className="assigned-train text-green font-bold">{plat.approachingTrainId} ({plat.trainType})</span>
-                    <span className="assigned-note">ETA: 4 MIN // SPEED 118 km/h</span>
-                  </div>
-                )}
-                {plat.occupancyState === 'CLEAR' && (
-                  <div className="plat-train-assigned">
-                    <span className="assigned-label">STANDBY STATUS:</span>
-                    <span className="assigned-train text-muted">TRACK VACANT & CLEAR</span>
-                    <span className="assigned-note">AVAILABLE FOR DIVERSION</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Bottom Specs Row */}
-              <div className="plat-specs-row font-mono">
-                <span>LEN: {plat.lengthMeters}M</span>
-                <span>SIGNAL: {plat.signalId} [{plat.signalAspect}]</span>
-                <span>CATENARY: 25.2kV OK</span>
-              </div>
-            </div>
-          );
-        })}
       </div>
 
       {/* Footer */}
       <div className="cr-panel-footer font-mono">
-        <span>Click any platform to inspect track circuit voltage & balise diagnostics.</span>
+        <span>Click any platform to inspect its train allocation and interlocking route locking.</span>
       </div>
     </div>
   );
