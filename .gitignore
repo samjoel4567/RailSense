@@ -30,3 +30,9 @@ venv/
 .vscode/*
 !.vscode/extensions.json
 .idea/
+
+# Local Python environment
+.venv/
+
+# YOLO model weights
+*.pt
