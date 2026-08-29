@@ -1,0 +1,443 @@
+/* ==========================================================================
+   RAIL//AI SIMULATOR CONTROLLER STYLES (Plain CSS)
+   ========================================================================== */
+
+.simulator-hud-wrapper {
+  position: sticky;
+  top: 72px; /* Sits right under the top navigation bar */
+  z-index: 95;
+  width: 100%;
+  padding: 8px 24px;
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.simulator-hud-wrapper.is-collapsed {
+  padding: 6px 24px;
+  background: rgba(15, 23, 42, 0.85);
+}
+
+.sim-hud-card {
+  max-width: 1440px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: #f8fafc;
+}
+
+/* --- Main HUD Bar --- */
+.sim-hud-main-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.sim-hud-brand-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sim-pulse-indicator {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+}
+
+.sim-live-bulb {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.sim-live-bulb.is-running {
+  background: #10b981;
+  box-shadow: 0 0 10px #10b981, 0 0 20px rgba(16, 185, 129, 0.5);
+  animation: pulse-green 1.5s infinite;
+}
+
+.sim-live-bulb.is-paused {
+  background: #f59e0b;
+  box-shadow: 0 0 6px #f59e0b;
+}
+
+@keyframes pulse-green {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.8; }
+}
+
+.sim-title-stack {
+  display: flex;
+  flex-direction: column;
+}
+
+.sim-hud-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #ffffff;
+}
+
+.sim-hud-state-tag {
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+}
+
+/* --- Phase Badge --- */
+.sim-phase-pill-display {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 4px 12px;
+  min-width: 220px;
+}
+
+.sim-phase-num {
+  font-size: 11px;
+  color: #38bdf8;
+  letter-spacing: 0.04em;
+}
+
+.sim-phase-desc {
+  font-size: 10px;
+  color: #cbd5e1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sim-phase-mini-progress {
+  width: 100%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.sim-phase-mini-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #38bdf8, #0284c7);
+  transition: width 0.15s linear;
+}
+
+/* --- Clock --- */
+.sim-clock-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 6px;
+  padding: 4px 12px;
+}
+
+.sim-clock-label {
+  font-size: 9px;
+  color: #64748b;
+  letter-spacing: 0.08em;
+}
+
+.sim-clock-digits {
+  font-size: 14px;
+  color: #38bdf8;
+  letter-spacing: 0.05em;
+}
+
+/* --- Playback Button Group --- */
+.sim-playback-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sim-ctrl-btn {
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #f1f5f9;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sim-ctrl-btn:hover:not(:disabled) {
+  background: #334155;
+  border-color: #38bdf8;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.sim-ctrl-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.sim-ctrl-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sim-ctrl-btn.btn-active-glow {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: #10b981;
+  color: #a7f3d0;
+}
+
+.sim-ctrl-btn.btn-auto-on {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+  color: #bae6fd;
+}
+
+/* --- Tools Group --- */
+.sim-tools-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sim-tool-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sim-tool-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.sim-tool-btn.is-active-tool {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+
+.btn-collapse-toggle {
+  font-size: 10px;
+  color: #64748b;
+}
+
+/* --- Phase Selection Bar --- */
+.sim-phases-selector-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  flex-wrap: wrap;
+}
+
+.phases-bar-label {
+  font-size: 10px;
+  color: #64748b;
+  letter-spacing: 0.06em;
+  margin-right: 4px;
+}
+
+.sim-phase-step-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(30, 41, 59, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sim-phase-step-btn:hover {
+  background: rgba(51, 65, 85, 0.8);
+  color: #ffffff;
+}
+
+.sim-phase-step-btn.is-current-phase {
+  background: rgba(2, 132, 199, 0.25);
+  border-color: #0284c7;
+  color: #38bdf8;
+  font-weight: 700;
+  box-shadow: 0 0 8px rgba(2, 132, 199, 0.3);
+}
+
+.sim-phase-step-btn .step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 9px;
+}
+
+.sim-phase-step-btn.is-current-phase .step-num {
+  background: #38bdf8;
+  color: #0f172a;
+}
+
+/* --- Telemetry Snapshot Strip --- */
+.sim-telemetry-snapshot-strip {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  padding: 6px 14px;
+  flex-wrap: wrap;
+  font-size: 11px;
+}
+
+.telem-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.telem-lbl {
+  color: #64748b;
+  font-size: 10px;
+}
+
+.telem-val {
+  color: #e2e8f0;
+}
+
+.text-blue {
+  color: #38bdf8 !important;
+}
+
+.text-amber {
+  color: #fbbf24 !important;
+}
+
+.text-red {
+  color: #f87171 !important;
+}
+
+.text-green {
+  color: #4ade80 !important;
+}
+
+.text-muted {
+  color: #64748b !important;
+}
+
+/* --- Event Log Drawer --- */
+.sim-event-log-drawer {
+  background: rgba(10, 15, 29, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-top: 4px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.event-log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.log-title {
+  font-size: 11px;
+  color: #38bdf8;
+  letter-spacing: 0.06em;
+}
+
+.log-sub {
+  font-size: 9px;
+  color: #64748b;
+}
+
+.event-log-scroll {
+  max-height: 110px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.event-log-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.event-log-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+.event-log-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #cbd5e1;
+  line-height: 1.4;
+}
+
+.log-time {
+  color: #38bdf8;
+  font-size: 11px;
+  min-width: 60px;
+}
+
+.log-divider {
+  color: #475569;
+}
+
+.log-phase-tag {
+  color: #f59e0b;
+  font-size: 10px;
+  min-width: 65px;
+}
+
+.log-text {
+  color: #e2e8f0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+  .sim-hud-main-bar {
+    gap: 10px;
+  }
+  .sim-phase-pill-display {
+    min-width: 160px;
+  }
+}
