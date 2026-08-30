@@ -5,17 +5,22 @@ import ControlRoom from './components/control-room/ControlRoom';
 import StationMaster from './pages/StationMaster';
 import LocoPilot from './pages/LocoPilot';
 import Simulator from './pages/Simulator';
+import Auth from './pages/Auth';
 import Footer from './components/Footer';
 import { SimulationProvider } from './simulator/SimulationContext';
+import { AuthProvider } from './auth/AuthContext';
+import ProtectedRoute from './auth/ProtectedRoute';
 import './App.css';
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState(() => {
     const hash = window.location.hash;
-    if (hash === '#control-room') return 'control-room';
-    if (hash === '#station-master') return 'station-master';
-    if (hash === '#loco-pilot') return 'loco-pilot';
-    if (hash === '#simulator') return 'simulator';
+    const path = window.location.pathname;
+    if (hash === '#auth' || path === '/auth') return 'auth';
+    if (hash === '#control-room' || path === '/control-room') return 'control-room';
+    if (hash === '#station-master' || path === '/station-master') return 'station-master';
+    if (hash === '#loco-pilot' || path === '/loco-pilot') return 'loco-pilot';
+    if (hash === '#simulator' || path === '/simulator') return 'simulator';
     return 'home';
   });
 
@@ -23,21 +28,28 @@ function AppContent() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash;
-      if (hash === '#control-room') {
+      const path = window.location.pathname;
+      if (hash === '#auth' || path === '/auth') {
+        setCurrentPage('auth');
+      } else if (hash === '#control-room' || path === '/control-room') {
         setCurrentPage('control-room');
-      } else if (hash === '#station-master') {
+      } else if (hash === '#station-master' || path === '/station-master') {
         setCurrentPage('station-master');
-      } else if (hash === '#loco-pilot') {
+      } else if (hash === '#loco-pilot' || path === '/loco-pilot') {
         setCurrentPage('loco-pilot');
-      } else if (hash === '#simulator') {
+      } else if (hash === '#simulator' || path === '/simulator') {
         setCurrentPage('simulator');
-      } else if (hash === '#home' || hash === '') {
+      } else if (hash === '#home' || hash === '' || path === '/') {
         setCurrentPage('home');
       }
     };
     handleHashChange();
     window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    window.addEventListener('popstate', handleHashChange);
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('popstate', handleHashChange);
+    };
   }, []);
 
   const handleNavigate = (page) => {
@@ -51,16 +63,42 @@ function AppContent() {
       {/* Top Navigation */}
       <Navbar currentPage={currentPage} onNavigate={handleNavigate} />
 
-      {/* Main View: Dedicated Simulator Page, Control Room, Station Master, Loco Pilot, or Home */}
+      {/* Main View: Auth, Simulator, Loco Pilot, Station Master, Control Room, or Home */}
       <main className="main-content">
-        {currentPage === 'simulator' ? (
-          <Simulator />
+        {currentPage === 'auth' ? (
+          <Auth onNavigate={handleNavigate} />
+        ) : currentPage === 'simulator' ? (
+          <ProtectedRoute
+            requiredRoles={['LOCO_PILOT', 'STATION_MASTER', 'CONTROL_ROOM', 'ADMIN']}
+            onNavigate={handleNavigate}
+            pageName="Railway Network Simulator"
+          >
+            <Simulator />
+          </ProtectedRoute>
         ) : currentPage === 'loco-pilot' ? (
-          <LocoPilot />
+          <ProtectedRoute
+            requiredRoles={['LOCO_PILOT', 'ADMIN']}
+            onNavigate={handleNavigate}
+            pageName="Loco Pilot DMI Cab Console"
+          >
+            <LocoPilot />
+          </ProtectedRoute>
         ) : currentPage === 'station-master' ? (
-          <StationMaster />
+          <ProtectedRoute
+            requiredRoles={['STATION_MASTER', 'ADMIN']}
+            onNavigate={handleNavigate}
+            pageName="Station Master Interlocking Console"
+          >
+            <StationMaster />
+          </ProtectedRoute>
         ) : currentPage === 'control-room' ? (
-          <ControlRoom />
+          <ProtectedRoute
+            requiredRoles={['CONTROL_ROOM', 'ADMIN']}
+            onNavigate={handleNavigate}
+            pageName="Central Control Room Network Operations"
+          >
+            <ControlRoom />
+          </ProtectedRoute>
         ) : (
           <Hero onNavigate={handleNavigate} />
         )}
@@ -74,10 +112,13 @@ function AppContent() {
 
 function App() {
   return (
-    <SimulationProvider>
-      <AppContent />
-    </SimulationProvider>
+    <AuthProvider>
+      <SimulationProvider>
+        <AppContent />
+      </SimulationProvider>
+    </AuthProvider>
   );
 }
 
 export default App;
+
