@@ -22,10 +22,12 @@ export const SIGNAL_RESTRICTED = 'RESTRICTED';
  * @param {Object} stationStates - current station states
  * @param {boolean} hazardActive - global hazard flag
  * @param {string|null} hazardSectionId - section where hazard is active
+ * @param {Array} [activeIntrusions=[]] - active intrusion events from intrusionEngine
  * @returns {Object} signalMap: { [sectionId]: { entry, exit, speedLimit }, [stationId]: { platform } }
  */
-export function computeSignals(trains, sectionStates, stationStates, hazardActive = false, hazardSectionId = null) {
+export function computeSignals(trains, sectionStates, stationStates, hazardActive = false, hazardSectionId = null, activeIntrusions = []) {
   const signalMap = {};
+  const intrusionSections = new Set((activeIntrusions || []).map(i => i.sectionId));
 
   // ── Process each section ──────────────────────────────
   Object.values(SECTIONS).forEach(sec => {
@@ -39,14 +41,25 @@ export function computeSignals(trains, sectionStates, stationStates, hazardActiv
     let statusText  = 'PROCEED';
     let reason      = '';
 
+    const sectionIntrusion = (activeIntrusions || []).find(i => i.sectionId === sec.id);
+
+    // Rule 0: Active Intrusion in this section → RED / STOP
+    if (sectionIntrusion) {
+      entryAspect = SIGNAL_RED;
+      exitAspect  = SIGNAL_RED;
+      speedLimit  = 0;
+      statusText  = 'STOP — INTRUSION HAZARD';
+      reason      = `${sectionIntrusion.type.replace(/_/g, ' ')} detected at KM ${sectionIntrusion.locationKm} (${sectionIntrusion.track})`;
+    }
     // Rule 1: Hazard in this section → RESTRICTED
-    if (hazardActive && (hazardSectionId === sec.id || hazardSectionId === null)) {
+    else if (hazardActive && (hazardSectionId === sec.id || hazardSectionId === null)) {
       entryAspect = SIGNAL_RESTRICTED;
       exitAspect  = SIGNAL_RESTRICTED;
       speedLimit  = 40;
       statusText  = 'RESTRICTED — HAZARD';
       reason      = 'AI Vision safety event active';
     }
+
     // Rule 2: Section at capacity (3+ trains same direction) → RED
     else if (count >= 3) {
       entryAspect = SIGNAL_RED;

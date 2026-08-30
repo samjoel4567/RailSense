@@ -178,10 +178,14 @@ export default function LocoPilot() {
   };
 
   // Build telemetry from live cab train
+  const permittedLimit = cabTrain?.speedRestriction !== null && cabTrain?.speedRestriction !== undefined
+    ? cabTrain.speedRestriction
+    : (cabTrain?.maxSpeed || 160);
+
   const telemetry = cabTrain ? {
     speedKmH:        Math.round(cabTrain.speed || 0),
     targetSpeedKmH:  Math.round(cabTrain.targetSpeed || 0),
-    permittedSpeedKmH: cabTrain.speedRestriction || cabTrain.maxSpeed || 160,
+    permittedSpeedKmH: permittedLimit,
     distanceTravelledKm: parseFloat((cabTrain.positionKm || 0).toFixed(2)),
     remainingKm:     parseFloat((cabTrain.remainingKm || 0).toFixed(2)),
     etaMinutes:      cabTrain.eta || '–',
@@ -205,17 +209,18 @@ export default function LocoPilot() {
   } : {};
 
   const signaling = {
-    currentAspect: currentSignal?.aspect || 'GREEN',
-    statusText:    currentSignal?.statusText || 'PROCEED',
-    speedLimit:    cabTrain?.speedRestriction || cabTrain?.maxSpeed || 160,
-    nextSignalKm:  null
+    currentAspect: currentSignal?.aspect || (cabTrain?.isAffectedByIntrusion ? 'RED' : 'GREEN'),
+    statusText:    currentSignal?.statusText || (cabTrain?.isAffectedByIntrusion ? 'STOP — TRACK INTRUSION' : 'PROCEED'),
+    speedLimit:    permittedLimit,
+    nextSignalKm:  cabTrain?.intrusionImpact?.distanceToObstacleKm ?? null
   };
 
   const safety = {
-    hazardActive:  status.hazardActive || false,
-    speedCeiling:  cabTrain?.speedRestriction || null,
-    sil4Active:    status.phase === 5,
-    emergencyBrakeAvailable: true
+    hazardActive:  status.hazardActive || !!cabTrain?.isAffectedByIntrusion,
+    speedCeiling:  cabTrain?.speedRestriction !== null && cabTrain?.speedRestriction !== undefined ? cabTrain.speedRestriction : null,
+    sil4Active:    status.phase === 5 || !!cabTrain?.isAffectedByIntrusion,
+    emergencyBrakeAvailable: true,
+    intrusionAlert: cabTrain?.intrusionImpact || null
   };
 
   // Show departure panel only when the cab train is dwelling and not arrived

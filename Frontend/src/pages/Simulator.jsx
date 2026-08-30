@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useSimulation, useImpactAnalysis } from '../simulator/SimulationContext';
+import { useSimulation, useImpactAnalysis, useIntrusionState } from '../simulator/SimulationContext';
 import SimulatorHeader from '../components/simulator/SimulatorHeader';
 import SimulatorPhaseNav from '../components/simulator/SimulatorPhaseNav';
 import SimulatorTimeline from '../components/simulator/SimulatorTimeline';
@@ -17,9 +17,12 @@ import './Simulator.css';
 export default function Simulator() {
   const [selectedTrainId, setSelectedTrainId] = useState(null);
   const { activeScenario, impactReport } = useImpactAnalysis();
+  const { affectedTrainIds: intrusionAffectedIds = [] } = useIntrusionState();
   const { controls } = useSimulation();
 
-  const affectedTrainIds = impactReport?.affectedTrains || [];
+  const scenarioAffected = impactReport?.affectedTrains || [];
+  const affectedTrainIds = Array.from(new Set([...scenarioAffected, ...intrusionAffectedIds]));
+
 
   function handleSelectTrain(train) {
     if (!train) return;

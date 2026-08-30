@@ -298,18 +298,27 @@ export function useStationMasterLive(stationId) {
     ? Object.entries(stationState.platforms).map(([platId, plat]) => {
         const occupyingTrain = allTrains.find(t => t.id === plat.trainId);
         const reservedTrain  = allTrains.find(t => t.id === plat.reservedForTrainId);
-        const signal = stationSignal?.platformSignals?.[platId] || 'GREEN';
+        let signal = stationSignal?.platformSignals?.[platId] || 'GREEN';
+        let state = plat.state || 'CLEAR';
+        if (occupyingTrain?.isAffectedByIntrusion) {
+          signal = 'RED';
+          if (occupyingTrain.intrusionImpact?.action === 'HOLD_AT_STATION') {
+            state = 'BLOCKED';
+          }
+        }
         return {
           id: platId,
-          state: plat.state || 'CLEAR',
+          state,
           trainId: plat.trainId || plat.reservedForTrainId || null,
           train: occupyingTrain || reservedTrain || null,
           signal,
           eta: (occupyingTrain || reservedTrain)?.etaAbsolute || null,
-          dwellSec: occupyingTrain?.dwellTime || 0
+          dwellSec: occupyingTrain?.dwellTime || 0,
+          isAffected: !!occupyingTrain?.isAffectedByIntrusion
         };
       })
     : [];
+
 
   return {
     stationId,
@@ -363,14 +372,20 @@ export function useMLStatus() {
 export function useIntrusionState() {
   const { state, intrusionControls } = useSimulation();
   const intrusionState = state.intrusionState || { active: [], history: [] };
+  const affectedTrainIds = state.affectedTrainIds || [];
+  const trainImpactMap = state.trainImpactMap || {};
 
   return {
-    active:        intrusionState.active  || [],
-    history:       intrusionState.history || [],
-    hasActive:     (intrusionState.active || []).length > 0,
-    criticalCount: (intrusionState.active || []).filter(
+    active:           intrusionState.active  || [],
+    history:          intrusionState.history || [],
+    hasActive:        (intrusionState.active || []).length > 0,
+    criticalCount:    (intrusionState.active || []).filter(
       i => i.severity === 'CRITICAL'
     ).length,
-    controls:      intrusionControls || {}
+    affectedTrainIds,
+    trainImpactMap,
+    affectedCount:    affectedTrainIds.length,
+    controls:         intrusionControls || {}
   };
 }
+

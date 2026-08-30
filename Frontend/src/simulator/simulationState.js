@@ -668,6 +668,10 @@ export function computeSimulationState(params = {}) {
     locoPilotDecisions: params.locoPilotDecisions || {},
     // ── Intrusion state (v4) ──
     intrusionState: params.intrusionState || { active: [], history: [] },
+    affectedTrainIds: params.affectedTrainIds || [],
+    trainImpactMap: params.trainImpactMap || {},
+    hasActiveIntrusions: !!params.hasActiveIntrusions,
     departureEvaluation: params.departureEvaluation || departureEvaluation
   };
 }
+

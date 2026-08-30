@@ -59,8 +59,9 @@ function NetworkRailwayMap({ allTrains, selectedTrainId, onSelectTrain }) {
     const isSelected = t.id === selectedTrainId;
     const isDelayed  = (t.delay || 0) > 0;
     const isConstrained = t.headwayStatus === 'CONSTRAINED';
+    const isAffected = !!t.isAffectedByIntrusion;
 
-    return { ...t, xPct, yPct, style, isSelected, isDelayed, isConstrained };
+    return { ...t, xPct, yPct, style, isSelected, isDelayed, isConstrained, isAffected };
   });
 
   return (
@@ -77,6 +78,10 @@ function NetworkRailwayMap({ allTrains, selectedTrainId, onSelectTrain }) {
               {type}
             </span>
           ))}
+          <span className="cr-legend-item" style={{ color: '#ef4444' }}>
+            <span className="cr-legend-dot" style={{ background: '#ef4444', boxShadow: '0 0 6px #ef4444' }} />
+            HAZARD AFFECTED
+          </span>
         </div>
       </div>
 
@@ -104,14 +109,32 @@ function NetworkRailwayMap({ allTrains, selectedTrainId, onSelectTrain }) {
         {trainMarkers.map(t => (
           <div
             key={t.id}
-            className={`cr-train-marker ${t.isSelected ? 'cr-train-selected' : ''} ${t.isDelayed ? 'cr-train-delayed' : ''} ${t.isConstrained ? 'cr-train-constrained' : ''}`}
-            style={{ left: `${t.xPct}%`, top: `${t.yPct}%`, transform: 'translate(-50%, -50%)' }}
+            className={`cr-train-marker ${t.isSelected ? 'cr-train-selected' : ''} ${t.isAffected ? 'cr-train-affected' : ''} ${t.isDelayed ? 'cr-train-delayed' : ''} ${t.isConstrained ? 'cr-train-constrained' : ''}`}
+            style={{
+              left: `${t.xPct}%`,
+              top: `${t.yPct}%`,
+              transform: 'translate(-50%, -50%)',
+              zIndex: t.isAffected ? 10 : 2
+            }}
             onClick={() => onSelectTrain(t.id)}
-            title={`${t.id} — ${t.speed} km/h — ${t.status}`}
+            title={`${t.id} — ${t.speed} km/h — ${t.status}${t.isAffected ? ' [INTRUSION AFFECTED]' : ''}`}
           >
-            <div className="cr-train-dot" style={{ background: t.style.dot }} />
-            <div className="cr-train-label font-mono" style={{ color: t.style.label }}>
+            <div
+              className="cr-train-dot"
+              style={{
+                background: t.isAffected ? '#ef4444' : t.style.dot,
+                boxShadow: t.isAffected ? '0 0 10px #ef4444, 0 0 20px #ef444488' : undefined
+              }}
+            />
+            <div
+              className="cr-train-label font-mono"
+              style={{
+                color: t.isAffected ? '#ef4444' : t.style.label,
+                fontWeight: t.isAffected ? 800 : undefined
+              }}
+            >
               {t.id.replace(/_(2\d\d|1\d\d|3\d\d|4\d\d|5\d\d)/,'_$1').split('_').pop()}
+              {t.isAffected && ' ⚠'}
             </div>
           </div>
         ))}
@@ -123,23 +146,35 @@ function NetworkRailwayMap({ allTrains, selectedTrainId, onSelectTrain }) {
 // ─── Train table row ─────────────────────────────────────
 function TrainRow({ train, isSelected, onSelect }) {
   const style   = TYPE_STYLE[train.type] || TYPE_STYLE.LOCAL;
-  const sstyle  = STATUS_STYLE[train.status] || STATUS_STYLE['IN TRANSIT'];
+  const isAff   = !!train.isAffectedByIntrusion;
+  const sstyle  = isAff
+    ? { bg: '#fef2f2', text: '#b91c1c', border: '#fca5a5' }
+    : STATUS_STYLE[train.status] || STATUS_STYLE['IN TRANSIT'];
   const delay   = Math.round(train.delay || 0);
-  const hwClass = train.headwayStatus === 'CONSTRAINED' ? 'hw-constrained-row' : '';
+  const hwClass = isAff ? 'hw-constrained-row' : train.headwayStatus === 'CONSTRAINED' ? 'hw-constrained-row' : '';
 
   return (
     <tr
       className={`cr-train-row ${isSelected ? 'cr-row-selected' : ''} ${hwClass}`}
       onClick={() => onSelect(train.id)}
+      style={isAff ? { background: '#fff5f5' } : undefined}
     >
-      <td className="font-mono font-bold" style={{ color: style.label }}>
-        <span className="cr-dot-sm" style={{ background: style.dot }} />
+      <td className="font-mono font-bold" style={{ color: isAff ? '#b91c1c' : style.label }}>
+        <span className="cr-dot-sm" style={{ background: isAff ? '#ef4444' : style.dot }} />
         {train.id}
+        {isAff && <span style={{ marginLeft: 6, fontSize: 9, color: '#ef4444' }}>● AFFECTED</span>}
       </td>
       <td className="font-mono" style={{ color: style.label }}>{train.type}</td>
       <td className="font-mono cr-speed-cell">
-        {Math.round(train.speed || 0)}
-        <span className="cr-unit">KM/H</span>
+        <div style={{ fontWeight: 700 }}>
+          {Math.round(train.speed || 0)}
+          <span className="cr-unit">KM/H</span>
+        </div>
+        {train.speedRestriction !== null && train.speedRestriction !== undefined && (
+          <div style={{ fontSize: 9, color: train.speedRestriction === 0 ? '#ef4444' : '#f59e0b', fontWeight: 700 }}>
+            TSR {train.speedRestriction} KM/H
+          </div>
+        )}
       </td>
       <td className="font-mono">
         {train.currentStation?.replace('STATION_','') ||
@@ -149,18 +184,19 @@ function TrainRow({ train, isSelected, onSelect }) {
       <td className="font-mono">{train.etaAbsolute || train.eta || '–'}</td>
       <td>
         <span className="cr-status-chip font-mono" style={{ background: sstyle.bg, color: sstyle.text, border: `1px solid ${sstyle.border}` }}>
-          {train.status || 'TRANSIT'}
+          {isAff ? `⚠ ${train.status}` : (train.status || 'TRANSIT')}
         </span>
       </td>
       <td className={`font-mono ${delay > 0 ? 'cr-delay-positive' : 'cr-delay-zero'}`}>
         {delay > 0 ? `+${delay} MIN` : 'ON TIME'}
       </td>
-      <td className={`font-mono cr-hw-cell hw-${(train.headwayStatus || 'safe').toLowerCase()}`}>
-        {train.headwayStatus || 'SAFE'}
+      <td className={`font-mono cr-hw-cell hw-${isAff ? 'constrained' : (train.headwayStatus || 'safe').toLowerCase()}`}>
+        {isAff ? (train.intrusionRisk || 'HAZARD') : (train.headwayStatus || 'SAFE')}
       </td>
     </tr>
   );
 }
+
 
 // ─── Network metrics strip ──────────────────────────────
 function NetworkMetricsStrip({ metrics, conflicts }) {
@@ -261,7 +297,7 @@ if (!document.getElementById(INTRUSION_STYLE_ID)) {
 }
 
 function IntrusionPanel() {
-  const { active, history, hasActive, criticalCount, controls } = useIntrusionState();
+  const { active, history, hasActive, criticalCount, affectedTrainIds = [], trainImpactMap = {}, controls } = useIntrusionState();
   const topSev  = active.find(i => i.severity === 'CRITICAL') ? 'CRITICAL'
     : active.find(i => i.severity === 'HIGH') ? 'HIGH'
     : active.find(i => i.severity === 'MEDIUM') ? 'MEDIUM'
@@ -335,6 +371,15 @@ function IntrusionPanel() {
           }}>
             {cfg.label}
           </span>
+          {affectedTrainIds.length > 0 && (
+            <span style={{
+              fontSize: 9, fontWeight: 700, padding: '2px 9px', borderRadius: 3,
+              background: '#ef4444', color: '#ffffff',
+              fontFamily: 'monospace', letterSpacing: '0.08em'
+            }}>
+              {affectedTrainIds.length} TRAIN{affectedTrainIds.length > 1 ? 'S' : ''} AFFECTED
+            </span>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <button
@@ -463,6 +508,49 @@ function IntrusionPanel() {
         })}
       </div>
 
+      {/* ── Affected Trains Live Status ── */}
+      {affectedTrainIds.length > 0 && (
+        <div style={{ background: '#140000', borderTop: '1px solid #7f1d1d', padding: '12px 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span style={{ fontSize: 10, fontWeight: 800, color: '#fca5a5', fontFamily: 'monospace', letterSpacing: '0.1em' }}>
+              ⚠ AFFECTED TRAINS ({affectedTrainIds.length}) — DYNAMIC SAFETY ENFORCEMENT
+            </span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 8 }}>
+            {affectedTrainIds.map(tid => {
+              const impact = trainImpactMap[tid];
+              if (!impact) return null;
+              const isCrit = impact.risk === 'CRITICAL';
+              return (
+                <div key={tid} style={{
+                  background: isCrit ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)',
+                  border: `1px solid ${isCrit ? '#ef4444' : '#f59e0b'}`,
+                  borderRadius: 6, padding: '8px 12px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8
+                }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 11, fontWeight: 900, color: isCrit ? '#ef4444' : '#f59e0b', fontFamily: 'monospace' }}>
+                        {tid}
+                      </span>
+                      <span style={{ fontSize: 8, fontWeight: 700, padding: '1px 5px', borderRadius: 3, background: isCrit ? '#ef4444' : '#f59e0b', color: '#000', fontFamily: 'monospace' }}>
+                        {impact.action.replace(/_/g, ' ')}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 9, color: '#cbd5e1', fontFamily: 'monospace', marginTop: 2 }}>
+                      {impact.distanceToObstacleKm < 9999 ? `${impact.distanceToObstacleKm} km to obstacle` : 'Route blocked'} · TSR {impact.speedRestriction} KM/H
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: isCrit ? '#ef4444' : '#f59e0b', fontFamily: 'monospace' }}>
+                    {impact.risk}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ── History strip ── */}
       {history.length > 0 && (
         <div style={{ background: '#0a0a0a', borderTop: '1px solid #1e1e1e', padding: '8px 14px' }}>
@@ -522,13 +610,14 @@ export default function ControlRoom() {
   const filteredTrains = useMemo(() => {
     return allTrains.filter(t => {
       if (filterType === 'AFFECTED') {
-        return (t.delay || 0) > 0 || t.headwayStatus === 'CONSTRAINED' || t.status === 'HELD';
+        return !!t.isAffectedByIntrusion || (t.delay || 0) > 0 || t.headwayStatus === 'CONSTRAINED' || t.status === 'HELD';
       }
       if (filterType !== 'ALL') return t.type === filterType;
       if (searchQuery) return t.id.toLowerCase().includes(searchQuery.toLowerCase());
       return true;
     });
   }, [allTrains, filterType, searchQuery]);
+
 
   return (
     <div className="control-room-page">

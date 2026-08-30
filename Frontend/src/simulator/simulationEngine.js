@@ -167,6 +167,76 @@ export class SimulationEngine {
     this.listeners.forEach(fn => { try { fn(this.state); } catch(e) { console.error(e); } });
   }
 
+  _buildDepartureEval(trainId = null) {
+    const targetTrainId = trainId || this.activeCabTrainId || this._getDefaultLocalCabId();
+    const cabTrain = targetTrainId ? this.trains.find(t => t.id === targetTrainId) : null;
+    const e201  = this.trains.find(t => t.id === 'EXPRESS_201');
+    return evaluateDeparture({
+      phase: this.currentPhase,
+      trains: [cabTrain, e201].filter(Boolean),
+      hazardActive: this.hazardActive,
+      activeIntrusions: intrusionEngine.getActiveIntrusions()
+    }, targetTrainId);
+  }
+
+  _getSimTimeSec() {
+    const [h, m, s] = this.clock.getTimeString().split(':').map(Number);
+    return h * 3600 + m * 60 + (s || 0);
+  }
+
+  _getDistTraversed(t) {
+    if (!t.currentSection) return 0;
+    const sec = SECTIONS[t.currentSection];
+    if (!sec) return 0;
+    return parseFloat(((t.positionPct / 100) * sec.lengthKm).toFixed(2));
+  }
+
+  _getDistRemaining(t) {
+    if (!t.currentSection) return 0;
+    const sec = SECTIONS[t.currentSection];
+    if (!sec) return 0;
+    return parseFloat(((1 - t.positionPct / 100) * sec.lengthKm).toFixed(2));
+  }
+
+  _computeNetworkMetrics(conflicts) {
+    const total       = this.trains.length;
+    const atStation   = this.trains.filter(t => t.isDwelling).length;
+    const inTransit   = total - atStation;
+    const delayed     = this.trains.filter(t => (t.delay || 0) > 0).length;
+    const constrained = this.trains.filter(t => t.headwayStatus === 'CONSTRAINED').length;
+    const affected    = this.trains.filter(t => t.isAffectedByIntrusion).length;
+    const onTime      = Math.max(0, total - delayed - constrained - affected);
+    const avgDelay    = this.trains.reduce((a, t) => a + (t.delay || 0), 0) / total;
+    const activeCritical = conflicts.filter(c => c.risk === 'CRITICAL' || c.risk === 'HIGH').length;
+
+    const riskScore = Math.min(100, Math.round(
+      (delayed / total)     * 30 +
+      (constrained / total) * 25 +
+      (affected / total)    * 35 +
+      (activeCritical * 8)  +
+      (this.hazardActive ? 30 : 0) +
+      (intrusionEngine.getActiveIntrusions().length > 0 ? 35 : 0) +
+      (this.currentPhase === 5 ? 15 : this.currentPhase === 4 ? 10 : 0)
+    ));
+
+    return {
+      totalTrains:      total,
+      activeStations:   10,
+      onTime,
+      delayed,
+      constrained,
+      affected,
+      inTransit,
+      atStation,
+      networkRisk:      riskScore,
+      riskCategory:     riskScore > 70 ? 'CRITICAL' : riskScore > 45 ? 'HIGH' : riskScore > 20 ? 'MODERATE' : 'NOMINAL',
+      activeConflicts:  activeCritical,
+      avgDelayMin:      parseFloat(avgDelay.toFixed(1)),
+      hazardActive:     this.hazardActive,
+      hasIntrusion:     intrusionEngine.getActiveIntrusions().length > 0
+    };
+  }
+
   // ─────────────────────────────────────────────────────────
   // State Builder
   // ─────────────────────────────────────────────────────────
@@ -186,6 +256,8 @@ export class SimulationEngine {
           signalStates: this.signalStates
         })
       : null;
+
+    const activeIntrusions = intrusionEngine.getActiveIntrusions();
 
     return computeSimulationState({
       phase:            this.currentPhase,
@@ -210,10 +282,14 @@ export class SimulationEngine {
       cabPrediction,
       locoPilotDecisions: { ...this.locoPilotDecisions },
       departureEvaluation: this._buildDepartureEval(),
-      // Intrusion state — read from singleton engine each tick
-      intrusionState: intrusionEngine.getState()
+      // Intrusion state & impact map
+      intrusionState:      intrusionEngine.getState(),
+      affectedTrainIds:    this.affectedTrainIds || [],
+      trainImpactMap:      this.intrusionImpactMap || {},
+      hasActiveIntrusions: activeIntrusions.length > 0
     });
   }
+
 
   _buildLegacyKinematics() {
     const mk = (id) => {
@@ -258,68 +334,63 @@ export class SimulationEngine {
     this.locoPilotDecisions = defaultCabId ? { [defaultCabId]: 'WAITING' } : {};
   }
 
-  _buildDepartureEval(trainId = null) {
-    const targetTrainId = trainId || this.activeCabTrainId || this._getDefaultLocalCabId();
-    const cabTrain = targetTrainId ? this.trains.find(t => t.id === targetTrainId) : null;
-    const e201  = this.trains.find(t => t.id === 'EXPRESS_201');
-    return evaluateDeparture({
-      phase: this.currentPhase,
-      trains: [cabTrain, e201].filter(Boolean),
-      hazardActive: this.hazardActive
-    }, targetTrainId);
-  }
+  // ─────────────────────────────────────────────────────────
+  // Intrusion Safety Enforcement
+  // ─────────────────────────────────────────────────────────
+  _applyIntrusionConstraints() {
+    const { affectedTrainIds, trainImpactMap } = intrusionEngine.evaluateTrainImpact(
+      this.trains, this.stationStates
+    );
+    this.affectedTrainIds = affectedTrainIds;
+    this.intrusionImpactMap = trainImpactMap;
 
-  _getSimTimeSec() {
-    const [h, m, s] = this.clock.getTimeString().split(':').map(Number);
-    return h * 3600 + m * 60 + (s || 0);
-  }
+    this.trains.forEach(train => {
+      const impact = trainImpactMap[train.id];
+      if (impact) {
+        train.isAffectedByIntrusion = true;
+        train.intrusionImpact = impact;
+        train.intrusionRisk = impact.risk;
+        train.speedRestriction = impact.speedRestriction;
 
-  _getDistTraversed(t) {
-    if (!t.currentSection) return 0;
-    const sec = SECTIONS[t.currentSection];
-    if (!sec) return 0;
-    return parseFloat(((t.positionPct / 100) * sec.lengthKm).toFixed(2));
-  }
+        // Dynamic status tagging for clear operational visibility
+        if (impact.action === 'EMERGENCY_STOP') {
+          train.status = 'STOPPED / INTRUSION HAZARD';
+          train.statusCategory = 'CRITICAL';
+        } else if (impact.action === 'HOLD_AT_STATION') {
+          train.status = 'HELD AT STATION (TRACK BLOCKED)';
+          train.statusCategory = 'CRITICAL';
+        } else if (impact.action === 'CAUTION_APPROACH') {
+          train.status = 'APPROACHING HAZARD (30 KM/H)';
+          train.statusCategory = 'CRITICAL';
+        } else if (impact.action === 'ADVISORY_HOLD') {
+          train.status = 'INTRUSION ADVISORY AHEAD';
+          train.statusCategory = 'DELAYED';
+        }
 
-  _getDistRemaining(t) {
-    if (!t.currentSection) return 0;
-    const sec = SECTIONS[t.currentSection];
-    if (!sec) return 0;
-    return parseFloat(((1 - t.positionPct / 100) * sec.lengthKm).toFixed(2));
-  }
-
-  _computeNetworkMetrics(conflicts) {
-    const total       = this.trains.length;
-    const atStation   = this.trains.filter(t => t.isDwelling).length;
-    const inTransit   = total - atStation;
-    const delayed     = this.trains.filter(t => (t.delay || 0) > 0).length;
-    const constrained = this.trains.filter(t => t.headwayStatus === 'CONSTRAINED').length;
-    const onTime      = Math.max(0, total - delayed - constrained);
-    const avgDelay    = this.trains.reduce((a, t) => a + (t.delay || 0), 0) / total;
-    const activeCritical = conflicts.filter(c => c.risk === 'CRITICAL' || c.risk === 'HIGH').length;
-
-    const riskScore = Math.min(100, Math.round(
-      (delayed / total)     * 30 +
-      (constrained / total) * 25 +
-      (activeCritical * 8)  +
-      (this.hazardActive ? 30 : 0) +
-      (this.currentPhase === 5 ? 15 : this.currentPhase === 4 ? 10 : 0)
-    ));
-
-    return {
-      totalTrains:      total,
-      activeStations:   10,
-      onTime,
-      delayed,
-      constrained,
-      inTransit,
-      atStation,
-      networkRisk:      riskScore,
-      riskCategory:     riskScore > 70 ? 'CRITICAL' : riskScore > 45 ? 'HIGH' : riskScore > 20 ? 'MODERATE' : 'NOMINAL',
-      activeConflicts:  activeCritical,
-      avgDelayMin:      parseFloat(avgDelay.toFixed(1)),
-      hazardActive:     this.hazardActive
-    };
+        const milestoneKey = `INTR_LOG_${impact.intrusionId}_${train.id}_${impact.action}`;
+        if (!this.loggedMilestones.has(milestoneKey)) {
+          this.loggedMilestones.add(milestoneKey);
+          this._addEvent(
+            impact.risk === 'CRITICAL' ? 'CRITICAL' : 'WARNING',
+            train.id,
+            `SAFETY ACTION: ${train.id} → ${impact.action} (${impact.speedRestriction} KM/H TSR) due to ${impact.intrusionId} at KM ${impact.locationKm}`
+          );
+        }
+      } else {
+        // If previously restricted by an intrusion that is now cleared, lift restrictions
+        if (train.isAffectedByIntrusion) {
+          train.isAffectedByIntrusion = false;
+          train.intrusionImpact = null;
+          train.intrusionRisk = null;
+          train.speedRestriction = null;
+          if (train.status.includes('INTRUSION') || train.status.includes('HAZARD') || train.status.includes('STOPPED') || train.status.includes('HELD')) {
+            train.status = train.isDwelling ? 'STATION DWELL' : 'IN TRANSIT';
+            train.statusCategory = 'NOMINAL';
+          }
+          this._addEvent('SYSTEM', train.id, `SAFETY CLEARANCE: ${train.id} path clear — resuming nominal speed`);
+        }
+      }
+    });
   }
 
   // ─────────────────────────────────────────────────────────
@@ -334,6 +405,9 @@ export class SimulationEngine {
     const phaseDur = SIMULATION_PHASES[this.currentPhase]?.durationSeconds || 20;
     this.phaseProgress = Math.min(100, this.phaseProgress + (deltaSec / phaseDur) * 100);
 
+    // ── Apply intrusion safety constraints BEFORE moving trains ──
+    this._applyIntrusionConstraints();
+
     // Move all trains
     this._updateAllTrains(deltaSec);
 
@@ -344,10 +418,11 @@ export class SimulationEngine {
     this.sectionStates = updateSectionStates(this.sectionStates, this.trains, violations);
     this.stationStates = updateStationStates(this.stationStates, this.trains);
 
-    // Recompute signals
+    // Recompute signals with active intrusions
+    const activeIntrusions = intrusionEngine.getActiveIntrusions();
     this.signalStates = computeSignals(
       this.trains, this.sectionStates, this.stationStates,
-      this.hazardActive, this.hazardSectionId
+      this.hazardActive, this.hazardSectionId, activeIntrusions
     );
 
     // Refresh ETAs
@@ -400,6 +475,12 @@ export class SimulationEngine {
       train.delay = Math.max(0, train.delay - deltaSec / 60);
     }
 
+    // Hold train if affected by intrusion with HOLD_AT_STATION or EMERGENCY_STOP
+    if (train.isAffectedByIntrusion &&
+        (train.intrusionImpact?.action === 'HOLD_AT_STATION' || train.intrusionImpact?.action === 'EMERGENCY_STOP')) {
+      return;
+    }
+
     // Loco Pilot HOLD keeps the train locked
     const decision = this.locoPilotDecisions[train.id];
     if (decision === 'HOLD') return;
@@ -409,6 +490,7 @@ export class SimulationEngine {
       this._departTrain(train);
     }
   }
+
 
   _updateInTransit(train, deltaSec) {
     const config = TRAIN_TYPE_CONFIG[train.type];

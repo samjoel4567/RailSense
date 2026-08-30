@@ -271,6 +271,187 @@ class IntrusionEngine {
   }
 
   /**
+   * Evaluates the impact of all active intrusions across all 30 trains.
+   *
+   * Flow:
+   *  1. Inspect every active intrusion.
+   *  2. For each train, determine if its track direction (DN_MAIN vs UP_MAIN) and route
+   *     puts it on a collision course towards the intrusion.
+   *  3. Calculate precise remaining distance (in km) to the obstacle.
+   *  4. Assign safety restriction:
+   *     - dist <= 3.0 km (or same section close ahead) -> EMERGENCY_STOP (0 km/h) [CRITICAL]
+   *     - 3.0 < dist <= 12.0 km -> CAUTION_APPROACH (30 km/h) [HIGH]
+   *     - At station & route heads into blocked section -> HOLD_AT_STATION (0 km/h) [HIGH]
+   *     - 12.0 < dist <= 35.0 km -> ADVISORY_HOLD (60 km/h) [MEDIUM]
+   *
+   * @param {Array} trains - array of all train objects
+   * @param {Object} [stationStates] - current station states
+   * @returns {{ affectedTrainIds: string[], trainImpactMap: Object, hasActive: boolean }}
+   */
+  evaluateTrainImpact(trains = [], stationStates = {}) {
+    const activeIntrusions = this.getActiveIntrusions();
+    const affectedTrainIds = [];
+    const trainImpactMap = {};
+
+    if (activeIntrusions.length === 0 || !Array.isArray(trains)) {
+      return {
+        affectedTrainIds: [],
+        trainImpactMap: {},
+        hasActive: false
+      };
+    }
+
+    trains.forEach(train => {
+      if (!train || train.hasReachedDestination) return;
+
+      let worstImpact = null;
+
+      activeIntrusions.forEach(intrusion => {
+        const impact = this._evaluateSingleTrainIntrusion(train, intrusion);
+        if (impact.isAffected) {
+          if (!worstImpact || impact.severityRank > worstImpact.severityRank) {
+            worstImpact = impact;
+          }
+        }
+      });
+
+      if (worstImpact) {
+        affectedTrainIds.push(train.id);
+        trainImpactMap[train.id] = worstImpact;
+      }
+    });
+
+    return {
+      affectedTrainIds,
+      trainImpactMap,
+      hasActive: activeIntrusions.length > 0
+    };
+  }
+
+  /**
+   * Helper to check one train against one intrusion.
+   * @private
+   */
+  _evaluateSingleTrainIntrusion(train, intrusion) {
+    const isSouthbound = train.direction === 'SOUTHBOUND';
+    const isNorthbound = train.direction === 'NORTHBOUND';
+
+    // Track matching
+    if (intrusion.track === TRACKS.DN_MAIN && !isSouthbound) {
+      return { isAffected: false, reason: 'Opposite track (UP_MAIN is safe)' };
+    }
+    if (intrusion.track === TRACKS.UP_MAIN && !isNorthbound) {
+      return { isAffected: false, reason: 'Opposite track (DN_MAIN is safe)' };
+    }
+
+    const trainKm = train.positionKm ?? 0;
+    const intrKm = intrusion.locationKm;
+    const route = train.route || [];
+
+    let isAffected = false;
+    let distanceToObstacleKm = 9999;
+    let inSameSection = false;
+    let isAtStation = false;
+
+    // Case 1: Train is in the SAME section as the intrusion
+    if (train.currentSection === intrusion.sectionId) {
+      inSameSection = true;
+      if (isSouthbound) {
+        if (trainKm <= intrKm + 0.2) {
+          isAffected = true;
+          distanceToObstacleKm = Math.max(0, intrKm - trainKm);
+        }
+      } else if (isNorthbound) {
+        if (trainKm >= intrKm - 0.2) {
+          isAffected = true;
+          distanceToObstacleKm = Math.max(0, trainKm - intrKm);
+        }
+      }
+    }
+    // Case 2: Train is dwelling at a station
+    else if (train.isDwelling && train.currentStation) {
+      isAtStation = true;
+      const intrIdx = route.indexOf(intrusion.sectionId);
+      if (intrIdx !== -1) {
+        if (isSouthbound && intrKm > trainKm) {
+          isAffected = true;
+          distanceToObstacleKm = Math.max(0, intrKm - trainKm);
+        } else if (isNorthbound && intrKm < trainKm) {
+          isAffected = true;
+          distanceToObstacleKm = Math.max(0, trainKm - intrKm);
+        }
+      }
+    }
+    // Case 3: Train is in an upstream section along its route
+    else if (train.currentSection && route.includes(train.currentSection)) {
+      const currIdx = route.indexOf(train.currentSection);
+      const intrIdx = route.indexOf(intrusion.sectionId);
+      if (intrIdx > currIdx) {
+        // Intrusion is in a downstream section along this train's path
+        if (isSouthbound && intrKm > trainKm) {
+          isAffected = true;
+          distanceToObstacleKm = Math.max(0, intrKm - trainKm);
+        } else if (isNorthbound && intrKm < trainKm) {
+          isAffected = true;
+          distanceToObstacleKm = Math.max(0, trainKm - intrKm);
+        }
+      }
+    }
+
+    if (!isAffected) {
+      return { isAffected: false };
+    }
+
+    // Determine safety tier based on distance to obstacle
+    let action = 'ADVISORY_HOLD';
+    let risk = 'MEDIUM';
+    let speedRestriction = 60;
+    let statusText = 'INTRUSION ADVISORY AHEAD';
+    let severityRank = 1;
+
+    if (inSameSection && distanceToObstacleKm <= 3.5) {
+      action = 'EMERGENCY_STOP';
+      risk = 'CRITICAL';
+      speedRestriction = 0;
+      statusText = 'EMERGENCY BRAKE / INTRUSION';
+      severityRank = 4;
+    } else if (isAtStation && (inSameSection || distanceToObstacleKm <= 10.0 || route[0] === intrusion.sectionId)) {
+      action = 'HOLD_AT_STATION';
+      risk = 'HIGH';
+      speedRestriction = 0;
+      statusText = 'HELD AT STATION (TRACK BLOCKED)';
+      severityRank = 3;
+    } else if (distanceToObstacleKm <= 12.0) {
+      action = 'CAUTION_APPROACH';
+      risk = 'HIGH';
+      speedRestriction = 30;
+      statusText = 'APPROACHING HAZARD (30 KM/H)';
+      severityRank = 2;
+    } else {
+      action = 'ADVISORY_HOLD';
+      risk = 'MEDIUM';
+      speedRestriction = 60;
+      statusText = 'CAUTION / RESTRICTED CEILING';
+      severityRank = 1;
+    }
+
+    return {
+      isAffected: true,
+      intrusionId: intrusion.id,
+      intrusionType: intrusion.type,
+      locationKm: intrusion.locationKm,
+      sectionId: intrusion.sectionId,
+      track: intrusion.track,
+      distanceToObstacleKm: parseFloat(distanceToObstacleKm.toFixed(1)),
+      action,
+      risk,
+      speedRestriction,
+      statusText,
+      severityRank
+    };
+  }
+
+  /**
    * Get current active intrusions as an array.
    * @returns {Object[]}
    */
@@ -313,3 +494,4 @@ class IntrusionEngine {
 
 // Global singleton — shared across all modules
 export const intrusionEngine = new IntrusionEngine();
+

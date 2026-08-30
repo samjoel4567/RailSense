@@ -11,13 +11,39 @@
  * @returns {Object} Structured evaluation result
  */
 export function evaluateDeparture(simContext, trainId = null) {
-  const { phase, trains = [], hazardActive = false } = simContext;
+  const { phase, trains = [], hazardActive = false, activeIntrusions = [] } = simContext;
 
   const localTrain = trains.find((t) => t.id === trainId) || {
     id: trainId,
     status: 'WAITING',
     progressPct: 0
   };
+
+  // 0. Active Intrusion Check along the departure corridor
+  const route = localTrain.route || [];
+  const nextSection = localTrain.currentSection || route[0] || 'SEC_B_C';
+  const blockingIntrusion = (activeIntrusions || []).find(i =>
+    (i.sectionId === nextSection || route.includes(i.sectionId)) &&
+    (localTrain.direction === 'SOUTHBOUND' ? i.track === 'DN_MAIN' : i.track === 'UP_MAIN')
+  );
+
+  if (blockingIntrusion) {
+    const distKm = Math.abs(blockingIntrusion.locationKm - (localTrain.positionKm || 0));
+    return {
+      authorized: false,
+      reason: `TRACK INTRUSION DETECTED — ${blockingIntrusion.type.replace(/_/g, ' ')} AT KM ${blockingIntrusion.locationKm}`,
+      risk: 95,
+      riskCategory: 'CRITICAL',
+      recommendation: 'HOLD',
+      conflictTrain: blockingIntrusion.id,
+      headwayStatus: 'BLOCKED',
+      headwaySeconds: 9999,
+      distanceToConflictMeters: Math.round(distKm * 1000),
+      estimatedClearanceTime: blockingIntrusion.estimatedClearanceTime ? `${blockingIntrusion.estimatedClearanceTime} MIN` : 'HOLD INDEFINITELY',
+      routeStatus: 'BLOCKED / TRACK INTRUSION',
+      signalAspect: 'RED'
+    };
+  }
 
   const expressTrain = trains.find((t) => t.id === 'EXPRESS_201') || {
     id: 'EXPRESS_201',
@@ -58,6 +84,7 @@ export function evaluateDeparture(simContext, trainId = null) {
       routeStatus: 'LOCKED / RESTRICTED',
       signalAspect: 'RED'
     };
+
   }
 
   // 2. Conflicting Train Approaching Junction Check
