@@ -6,14 +6,41 @@
  * and network resilience with fallback support for offline dev environments.
  */
 
-const API_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL)
-  ? import.meta.env.VITE_API_URL
-  : 'http://localhost:5001/api/auth';
+const RAW_API_URL = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL)
+  ? import.meta.env.VITE_API_URL.replace(/\/$/, '')
+  : 'https://railsense-4qif.onrender.com';
+
+const API_BASE_URL = RAW_API_URL.endsWith('/api/auth')
+  ? RAW_API_URL
+  : `${RAW_API_URL}/api/auth`;
 
 
 const TOKEN_KEY = 'rail_ai_auth_token';
 const USER_KEY = 'rail_ai_auth_user';
 const REMEMBER_KEY = 'rail_ai_auth_remember';
+
+function readJsonResponsePayload(text) {
+  if (!text) return {};
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { message: text };
+  }
+}
+
+function shouldUseLocalFallback(errorOrStatus) {
+  if (typeof errorOrStatus === 'number') {
+    return errorOrStatus === 404 || errorOrStatus >= 500;
+  }
+
+  const message = errorOrStatus?.message || '';
+  return (
+    errorOrStatus?.name === 'TypeError' ||
+    errorOrStatus?.name === 'SyntaxError' ||
+    /fetch failed|networkerror|failed to fetch/i.test(message)
+  );
+}
 
 /**
  * Get active storage (localStorage for remember-me, sessionStorage otherwise)
@@ -40,19 +67,40 @@ export const authService = {
         body: JSON.stringify({ email: email.trim().toLowerCase(), password })
       });
 
-      const data = await response.json();
+      const responseText = await response.text();
+      const data = readJsonResponsePayload(responseText);
 
       if (!response.ok) {
+        if (shouldUseLocalFallback(response.status)) {
+          console.warn(`[authService] Auth API returned ${response.status}. Falling back to local terminal mock authentication.`);
+          const mockUser = this._createMockUserFromEmail(email);
+          const mockToken = `mock-jwt-token-${Date.now()}`;
+          this._saveSession(mockUser, mockToken, rememberMe);
+          return { user: mockUser, token: mockToken, source: 'LOCAL_FALLBACK' };
+        }
+
         throw new Error(data.message || data.error || 'Authentication failed. Please check your credentials.');
       }
 
       const { user, token } = data;
+      if (!user || !token) {
+        if (shouldUseLocalFallback(response.status)) {
+          console.warn('[authService] Auth API returned an incomplete payload. Falling back to local terminal mock authentication.');
+          const mockUser = this._createMockUserFromEmail(email);
+          const mockToken = `mock-jwt-token-${Date.now()}`;
+          this._saveSession(mockUser, mockToken, rememberMe);
+          return { user: mockUser, token: mockToken, source: 'LOCAL_FALLBACK' };
+        }
+
+        throw new Error('Authentication endpoint returned an unexpected response.');
+      }
+
       this._saveSession(user, token, rememberMe);
       return { user, token, source: 'API' };
     } catch (err) {
       // If server is unreachable (NetworkError / fetch failed), provide simulated dev fallback
-      if (err.name === 'TypeError' && err.message.includes('fetch')) {
-        console.warn('[authService] Backend server is offline. Activating local terminal mock authentication.');
+      if (shouldUseLocalFallback(err)) {
+        console.warn('[authService] Backend auth service unavailable. Activating local terminal mock authentication.');
         const mockUser = this._createMockUserFromEmail(email);
         const mockToken = `mock-jwt-token-${Date.now()}`;
         this._saveSession(mockUser, mockToken, rememberMe);
@@ -82,19 +130,52 @@ export const authService = {
         })
       });
 
-      const data = await response.json();
+      const responseText = await response.text();
+      const data = readJsonResponsePayload(responseText);
 
       if (!response.ok) {
+        if (shouldUseLocalFallback(response.status)) {
+          console.warn(`[authService] Auth API returned ${response.status}. Falling back to local terminal mock account creation.`);
+          const mockUser = {
+            id: `usr_${Date.now()}`,
+            name: name.trim(),
+            email: email.trim().toLowerCase(),
+            role: normalizeRole(role),
+            createdAt: new Date().toISOString()
+          };
+          const mockToken = `mock-jwt-token-${Date.now()}`;
+          this._saveSession(mockUser, mockToken, rememberMe);
+          return { user: mockUser, token: mockToken, source: 'LOCAL_FALLBACK' };
+        }
+
         throw new Error(data.message || data.error || 'Registration failed. Please try again.');
       }
 
       const { user, token } = data;
+      if (!user || !token) {
+        if (shouldUseLocalFallback(response.status)) {
+          console.warn('[authService] Auth API returned an incomplete payload. Falling back to local terminal mock account creation.');
+          const mockUser = {
+            id: `usr_${Date.now()}`,
+            name: name.trim(),
+            email: email.trim().toLowerCase(),
+            role: normalizeRole(role),
+            createdAt: new Date().toISOString()
+          };
+          const mockToken = `mock-jwt-token-${Date.now()}`;
+          this._saveSession(mockUser, mockToken, rememberMe);
+          return { user: mockUser, token: mockToken, source: 'LOCAL_FALLBACK' };
+        }
+
+        throw new Error('Registration endpoint returned an unexpected response.');
+      }
+
       this._saveSession(user, token, rememberMe);
       return { user, token, source: 'API' };
     } catch (err) {
       // If server is unreachable, provide simulated dev fallback
-      if (err.name === 'TypeError' && err.message.includes('fetch')) {
-        console.warn('[authService] Backend server is offline. Activating local terminal mock account creation.');
+      if (shouldUseLocalFallback(err)) {
+        console.warn('[authService] Backend auth service unavailable. Activating local terminal mock account creation.');
         const mockUser = {
           id: `usr_${Date.now()}`,
           name: name.trim(),

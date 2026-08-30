@@ -88,8 +88,7 @@ export default function CinematicIntro({ onScrollEnter }) {
         onClick={handleScrollClick}
         aria-label="Scroll to enter system"
       >
-        <span className="scroll-text font-mono">SCROLL TO ENTER SYSTEM</span>
-        <span className="scroll-arrow">↓</span>
+        <span className="scroll-arrow">EXPLORE<span style={{ paddingLeft: '10px' }}> </span>  :)</span>
       </button>
     </section>
   );

@@ -207,6 +207,18 @@
   color: #0284c7;
 }
 
+.badge-loading {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+}
+
+.badge-error {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  color: #be123c;
+}
+
 .status-dot {
   width: 6px;
   height: 6px;
@@ -223,6 +235,87 @@
   box-shadow: 0 0 6px rgba(2, 132, 199, 0.5);
 }
 
+.dot-red {
+  background: #e11d48;
+  box-shadow: 0 0 6px rgba(225, 29, 72, 0.5);
+}
+
+.model-source-chip {
+  font-size: 9px;
+  color: var(--text-dim, #94a3b8);
+  letter-spacing: 0.04em;
+}
+
+.model-loading-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  color: #0369a1;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+.loading-spinner {
+  display: inline-block;
+  animation: spin 1.2s linear infinite;
+  font-size: 14px;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.xgboost-error-compact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 8px;
+  color: #be123c;
+  font-size: 11px;
+  margin-bottom: 20px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.error-compact-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.error-compact-icon {
+  font-size: 14px;
+}
+
+.error-compact-retry-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: #e11d48;
+  color: #ffffff;
+  border: none;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.error-compact-retry-btn:hover {
+  background: #be123c;
+}
+
 .model-samples-badge {
   font-size: 10px;
   color: var(--text-muted, #64748b);
@@ -234,10 +327,10 @@
   color: var(--text-primary, #090d16);
 }
 
-/* ── Metrics Grid ─────────────────────────────────────── */
+/* ── Metrics Grid (5 Columns on Desktop) ──────────────── */
 .model-metrics-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 16px;
   margin-bottom: 28px;
 }
@@ -398,6 +491,28 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: 10px;
+}
+
+.artifact-header-title-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.artifact-icon {
+  font-size: 14px;
+}
+
+.artifacts-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.artifacts-source {
+  font-size: 9px;
+  color: var(--text-dim, #94a3b8);
+  letter-spacing: 0.04em;
 }
 
 .artifact-title {
@@ -767,15 +882,19 @@
 }
 
 /* ── Responsive Breakpoints ───────────────────────────── */
-@media (max-width: 1024px) {
+@media (max-width: 1200px) {
   .model-metrics-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
 @media (max-width: 768px) {
   .model-performance-card {
     padding: 20px;
+  }
+
+  .model-metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .artifacts-grid {

@@ -9,7 +9,8 @@ export default function EvaluationImage({
   description,
   imagePath,
   loading = false,
-  onZoom = null
+  onZoom = null,
+  icon = '📊'
 }) {
   const [imageError, setImageError] = useState(false);
   const fullImageUrl = resolveEvaluationImageUrl(imagePath);
@@ -27,7 +28,10 @@ export default function EvaluationImage({
   return (
     <div className="eval-artifact-card">
       <div className="eval-artifact-header">
-        <h4 className="artifact-title font-mono">{title}</h4>
+        <div className="artifact-header-title-group">
+          <span className="artifact-icon">{icon}</span>
+          <h4 className="artifact-title font-mono">{title}</h4>
+        </div>
         <span className="artifact-badge font-mono">ARTIFACT</span>
       </div>
 
@@ -55,9 +59,9 @@ export default function EvaluationImage({
           </>
         ) : (
           <div className="eval-artifact-placeholder font-mono">
-            <span className="placeholder-icon">📊</span>
+            <span className="placeholder-icon">{icon}</span>
             <span className="placeholder-text">
-              {imageError ? 'Artifact image unavailable from backend' : 'Generating artifact...'}
+              {imageError ? 'Artifact image unavailable from backend' : 'Loading evaluation artifact...'}
             </span>
           </div>
         )}
@@ -69,3 +73,4 @@ export default function EvaluationImage({
     </div>
   );
 }
+

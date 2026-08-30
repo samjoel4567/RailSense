@@ -1,19 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getModelEvaluation } from '../../../services/mlPredictionClient';
+import { getXGBoostEvaluation } from '../../../services/mlPredictionClient';
 
 /**
- * Custom React hook for fetching and managing AI Model Performance Evaluation data.
- * Handles loading, error, success, and manual retry without polling loops.
+ * Custom React hook for fetching and managing AI Model Performance Evaluation data from FastAPI.
+ * Calls GET /model/evaluation/xgboost and handles loading, error, success, and manual retry.
  */
 export function useModelEvaluation() {
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [evaluation, setEvaluation] = useState(null);
+  const [evaluationLoading, setEvaluationLoading] = useState(true);
+  const [evaluationError, setEvaluationError] = useState(null);
   const [fetchIndex, setFetchIndex] = useState(0);
 
   const retry = useCallback(() => {
-    setError(null);
-    setLoading(true);
+    setEvaluationError(null);
+    setEvaluationLoading(true);
     setFetchIndex(prev => prev + 1);
   }, []);
 
@@ -23,21 +23,21 @@ export function useModelEvaluation() {
 
     async function fetchData() {
       try {
-        setLoading(true);
-        setError(null);
-        const result = await getModelEvaluation(controller.signal);
+        setEvaluationLoading(true);
+        setEvaluationError(null);
+        const result = await getXGBoostEvaluation(controller.signal);
         if (isMounted) {
-          setData(result);
-          setError(null);
+          setEvaluation(result);
+          setEvaluationError(null);
         }
       } catch (err) {
         if (isMounted && err.name !== 'AbortError') {
-          console.warn('[useModelEvaluation] Failed to fetch model evaluation:', err.message);
-          setError(err.message || 'AI evaluation service temporarily unavailable');
+          console.warn('[useModelEvaluation] Failed to fetch XGBoost evaluation:', err.message);
+          setEvaluationError('Unable to load XGBoost evaluation from FastAPI.');
         }
       } finally {
         if (isMounted) {
-          setLoading(false);
+          setEvaluationLoading(false);
         }
       }
     }
@@ -50,5 +50,15 @@ export function useModelEvaluation() {
     };
   }, [fetchIndex]);
 
-  return { data, loading, error, retry };
+  return {
+    evaluation,
+    evaluationLoading,
+    evaluationError,
+    // Aliases for backwards-compatibility
+    data: evaluation,
+    loading: evaluationLoading,
+    error: evaluationError,
+    retry
+  };
 }
+

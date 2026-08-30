@@ -5,11 +5,14 @@ import YOLOv8Card from './YOLOv8Card';
 import './AIModelPerformance.css';
 
 export default function AIModelPerformance() {
-  const { data, loading, error, retry } = useModelEvaluation();
+  const { evaluation, evaluationLoading, evaluationError, data, loading, error, retry } = useModelEvaluation();
   const [activeLightbox, setActiveLightbox] = useState(null); // { title, description, url }
 
-  const xgboost = data?.xgboost;
+  // XGBoost evaluation data from FastAPI /model/evaluation/xgboost
+  const xgboostEvaluation = evaluation || data?.xgboost || data;
   const yolov8 = data?.yolov8;
+  const isError = Boolean(evaluationError || error);
+  const isLoading = Boolean(evaluationLoading ?? loading);
 
   return (
     <section className="ai-model-perf-section" id="model-performance">
@@ -60,13 +63,13 @@ export default function AIModelPerformance() {
         </div>
 
         {/* Error Notification with Retry */}
-        {error && (
+        {isError && (
           <div className="ai-perf-error-banner font-mono">
             <div className="error-text-group">
               <span className="error-icon">⚠</span>
               <div>
-                <strong>AI evaluation service temporarily unavailable</strong>
-                <p className="error-hint">Failed to fetch live evaluation report from backend. Ensure FastAPI service is online.</p>
+                <strong>Unable to load XGBoost evaluation from FastAPI.</strong>
+                <p className="error-hint">Ensure FastAPI backend service is running on port 8000 and accessible.</p>
               </div>
             </div>
             <button
@@ -83,14 +86,16 @@ export default function AIModelPerformance() {
         {/* Model Cards Grid */}
         <div className="model-cards-container">
           <XGBoostCard
-            xgboostData={xgboost}
-            loading={loading}
+            evaluation={xgboostEvaluation}
+            loading={isLoading}
+            error={isError ? (evaluationError || error) : null}
+            onRetry={retry}
             onZoomImage={(img) => setActiveLightbox(img)}
           />
 
           <YOLOv8Card
             yolov8Data={yolov8}
-            loading={loading}
+            loading={isLoading}
           />
         </div>
 
@@ -132,7 +137,7 @@ export default function AIModelPerformance() {
             </div>
 
             <div className="lightbox-footer font-mono">
-              <span>SOURCE: FASTAPI BACKEND EVALUATION ARTIFACTS</span>
+              <span>Source: FastAPI ML Evaluation API</span>
               <button
                 type="button"
                 className="lightbox-action-close"

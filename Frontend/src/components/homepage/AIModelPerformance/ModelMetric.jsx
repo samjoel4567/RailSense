@@ -1,44 +1,52 @@
 import React, { useState, useEffect } from 'react';
 
 /**
- * Single Model Metric Tile with animated percentage counter and informational tooltip.
+ * Single Model Metric Tile with animated counter, progress indicator, and informational tooltip.
+ * Supports both percentage metrics (formatted to 1 decimal place) and absolute sample counts.
  */
-export default function ModelMetric({ label, value, tooltip, loading = false, tag = 'SIL-4' }) {
+export default function ModelMetric({
+  label,
+  value,
+  tooltip,
+  loading = false,
+  isCount = false,
+  decimalPlaces = 1
+}) {
   const [displayValue, setDisplayValue] = useState(0);
   const [showTooltip, setShowTooltip] = useState(false);
 
-  // Normalize target value to percentage (0 - 100)
-  const targetPct = typeof value === 'number'
-    ? (value <= 1 ? value * 100 : value)
+  // Normalize target value
+  const targetVal = typeof value === 'number'
+    ? (isCount ? value : (value <= 1 ? value * 100 : value))
     : null;
 
-  // Animate count-up from 0 to actual target percentage
+  // Animate count-up from 0 to target value
   useEffect(() => {
-    if (loading || targetPct === null || isNaN(targetPct)) {
+    if (loading || targetVal === null || isNaN(targetVal)) {
       setDisplayValue(0);
       return;
     }
 
     let startTimestamp = null;
-    const duration = 1200; // ms
+    const duration = 1000; // ms
 
     const step = (timestamp) => {
       if (!startTimestamp) startTimestamp = timestamp;
       const progress = Math.min((timestamp - startTimestamp) / duration, 1);
       // Ease out cubic
       const easeProgress = 1 - Math.pow(1 - progress, 3);
-      setDisplayValue(easeProgress * targetPct);
+      setDisplayValue(easeProgress * targetVal);
 
       if (progress < 1) {
         window.requestAnimationFrame(step);
       } else {
-        setDisplayValue(targetPct);
+        setDisplayValue(targetVal);
       }
     };
 
     const animId = window.requestAnimationFrame(step);
     return () => window.cancelAnimationFrame(animId);
-  }, [targetPct, loading]);
+  }, [targetVal, loading, isCount]);
 
   if (loading) {
     return (
@@ -50,9 +58,15 @@ export default function ModelMetric({ label, value, tooltip, loading = false, ta
     );
   }
 
-  const formattedValue = targetPct !== null
-    ? `${displayValue.toFixed(2)}%`
+  const formattedValue = targetVal !== null
+    ? (isCount
+        ? Number(Math.round(displayValue)).toLocaleString()
+        : `${displayValue.toFixed(decimalPlaces)}%`)
     : '–';
+
+  const progressPercent = isCount
+    ? 100
+    : Math.min(100, Math.max(0, displayValue));
 
   return (
     <div
@@ -82,7 +96,7 @@ export default function ModelMetric({ label, value, tooltip, loading = false, ta
       <div className="metric-progress-track">
         <div
           className="metric-progress-fill"
-          style={{ width: `${Math.min(100, Math.max(0, displayValue))}%` }}
+          style={{ width: `${progressPercent}%` }}
         />
       </div>
 
@@ -96,3 +110,4 @@ export default function ModelMetric({ label, value, tooltip, loading = false, ta
     </div>
   );
 }
+

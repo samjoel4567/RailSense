@@ -14,26 +14,27 @@ import './Auth.css';
 
 export default function Auth({ onNavigate, initialMode = 'login' }) {
   const [authMode, setAuthMode] = useState(initialMode); // 'login' | 'signup'
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+
+  const getLandingPageForRole = (role) => {
+    if (role === 'LOCO_PILOT') return 'loco-pilot';
+    if (role === 'STATION_MASTER') return 'station-master';
+    if (role === 'CONTROL_ROOM' || role === 'ADMIN') return 'control-room';
+    return 'simulator';
+  };
 
   // If already authenticated, redirect to simulator
 
   useEffect(() => {
     if (isAuthenticated) {
-      if (onNavigate) {
-        onNavigate('simulator');
-      } else {
-        window.location.hash = '#simulator';
-      }
+      const target = getLandingPageForRole(user?.role);
+      if (onNavigate) onNavigate(target);
+      else window.location.hash = `#${target}`;
     }
-  }, [isAuthenticated, onNavigate]);
+  }, [isAuthenticated, user?.role, onNavigate]);
 
   const handleAuthSuccess = (authenticatedUser) => {
-    // Determine landing page based on role or default to simulator
-    let target = 'simulator';
-    if (authenticatedUser?.role === 'LOCO_PILOT') target = 'loco-pilot';
-    else if (authenticatedUser?.role === 'STATION_MASTER') target = 'station-master';
-    else if (authenticatedUser?.role === 'CONTROL_ROOM') target = 'control-room';
+    const target = getLandingPageForRole(authenticatedUser?.role);
 
     if (onNavigate) {
       onNavigate(target);

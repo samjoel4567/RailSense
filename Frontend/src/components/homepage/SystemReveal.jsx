@@ -45,6 +45,21 @@ const interfaceCards = [
       { label: 'BRAKING CURVE', value: 'DYNAMIC RESTRICTED' }
     ],
     features: ['ETCS Level 2 DMI Dial', 'Braking Target Distance', 'Vigilance / DSD Cycle', 'Live Radio Dispatch Feed']
+  },
+  {
+    id: 'passenger',
+    tag: 'CUSTOMER INTERFACE 04',
+    role: 'PASSENGER PORTAL',
+    sub: 'Journey Planner & Live ETA',
+    desc: 'Public traveler portal: search routes, track approaching trains, live station boards, and real-time ETAs.',
+    status: 'LIVE // 30 TRAINS',
+    statusColor: 'green',
+    metrics: [
+      { label: 'CORRIDOR', value: '10 STATIONS' },
+      { label: 'LIVE TRAFFIC', value: '30 SERVICES' },
+      { label: 'PREDICTED ETA', value: 'CONTINUOUS' }
+    ],
+    features: ['From / To Journey Search', 'Predicted Arrival Times', 'Live Train Progress Track', 'Platform Arrival Boards']
   }
 ];
 

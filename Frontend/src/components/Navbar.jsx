@@ -99,6 +99,17 @@ export default function Navbar({ currentPage = 'home', onNavigate }) {
           </button>
 
           <button 
+            className={`nav-link ${currentPage === 'passenger' ? 'is-active-nav' : ''}`}
+            onClick={() => handleNavClick('passenger')}
+            style={{ color: currentPage === 'passenger' ? '#0284c7' : undefined }}
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#0284c7' }}></span>
+              PASSENGER PORTAL
+            </span>
+          </button>
+
+          <button 
             className={`nav-link ${currentPage === 'station-master' ? 'is-active-nav' : ''}`}
             onClick={() => handleNavClick('station-master')}
           >

@@ -57,7 +57,7 @@ export default function NetworkSummary({
           <span>FILTER: {selectedTrainId || selectedSectionId}</span>
         </div>
       )}
-
+      
     </div>
   );
 }
