@@ -72,7 +72,7 @@ def test_true_live_fastapi_pipeline():
 
             # 4. Receive Real-Time Alert Frame on WebSocket Client
             ws_alert_data = None
-            for _ in range(10):
+            for _ in range(30):
                 frame = websocket.receive_json()
                 evt_type = str(frame.get("event_type", "")).upper()
                 if "ALERT" in evt_type:
@@ -94,7 +94,7 @@ def test_true_live_fastapi_pipeline():
 
         # 6. Verify Runtime-Generated Fields on Alert
         assert "alert_id" in run1_alert and isinstance(run1_alert["alert_id"], str) and len(run1_alert["alert_id"]) > 0
-        assert "train_id" in run1_alert and run1_alert["train_id"] in ["LOCAL-101", "EXPRESS-202"]
+        assert "train_id" in run1_alert and ("LOCAL" in run1_alert["train_id"] or "EXPRESS" in run1_alert["train_id"])
         assert "section" in run1_alert and "SEC-A1" in run1_alert["section"]
         assert "risk_score" in run1_alert and isinstance(run1_alert["risk_score"], (int, float)) and run1_alert["risk_score"] > 0.0
         assert "risk_level" in run1_alert and run1_alert["risk_level"] in ["LOW", "MEDIUM", "HIGH", "CRITICAL"]

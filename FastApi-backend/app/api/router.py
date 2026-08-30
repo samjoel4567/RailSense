@@ -6,7 +6,7 @@ and WebSocket real-time telemetry endpoint (/ws).
 
 from datetime import datetime, timezone
 from typing import Any, Dict, List
-from fastapi import APIRouter, HTTPException, Path, Query, status, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Body, HTTPException, Path, Query, status, WebSocket, WebSocketDisconnect
 
 from app.services.demo_orchestrator import demo_orchestrator
 from app.services.simulator import simulator
@@ -36,6 +36,36 @@ async def get_trains() -> List[Dict[str, Any]]:
     return state_store.get_trains()
 
 
+@router.post("/trains/{train_id}/telemetry", summary="Update Train Telemetry and Recalculate Network Impact")
+async def update_train_telemetry(
+    train_id: str = Path(..., description="Train ID identifier (e.g. LOCAL-101, LOCAL-102, LOCAL-103)"),
+    telemetry: Dict[str, Any] = Body(..., description="Telemetry parameters to update")
+) -> Dict[str, Any]:
+    """
+    Updates telemetry for any specific train, recomputes its prediction,
+    and cascades network impact to recalculate affected downstream trains' ETAs and headways.
+    """
+    from app.services.impact_engine import impact_engine
+
+    telemetry["train_id"] = train_id
+    telemetry["timestamp"] = datetime.now(timezone.utc).isoformat()
+
+    train_state = state_store.get_or_create_train(train_id)
+    train_state.update(telemetry)
+    train_state["is_live"] = True
+    train_state["data_source"] = "LIVE"
+
+    pred = state_store.get_prediction(train_id)
+    affected = impact_engine.evaluate_and_recalculate_network_impact(train_id, train_state, bus=state_store.bus)
+
+    return {
+        "message": f"Telemetry updated for train '{train_id}'. Network impact recalculated.",
+        "train_prediction": pred,
+        "affected_trains_predictions": affected,
+        "active_trains_count": len(state_store.trains)
+    }
+
+
 @router.get("/predictions", summary="Get All Active ML Predictions")
 async def get_predictions() -> List[Dict[str, Any]]:
     """Returns real-time ML operational predictions (ETA, delay, conflict probability, action) for active trains."""
@@ -44,14 +74,14 @@ async def get_predictions() -> List[Dict[str, Any]]:
 
 @router.get("/predictions/{train_id}", summary="Get ML Prediction for Specific Train")
 async def get_train_prediction(
-    train_id: str = Path(..., description="Train ID identifier (e.g. LOCAL-101)")
+    train_id: str = Path(..., description="Train ID identifier (e.g. LOCAL-101, LOCAL-102, LOCAL-103, EXPRESS-202)")
 ) -> Dict[str, Any]:
-    """Returns ML operational prediction for a specific train."""
+    """Returns ML operational prediction for any requested train ID (computes on-demand if needed)."""
     pred = state_store.get_prediction(train_id)
     if not pred:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No active ML prediction found for train '{train_id}'."
+            detail=f"Unable to generate ML prediction for train '{train_id}'."
         )
     return pred
 

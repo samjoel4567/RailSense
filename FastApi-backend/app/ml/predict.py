@@ -242,6 +242,14 @@ class PredictionService:
         # Publish live prediction event to PREDICTION channel
         await self.bus.publish(prediction_event)
         logger.info(f"[PredictionService] Published PREDICTION for Train {train_id} on {section} (Prob: {result['conflict_probability']}, Action: {result['recommended_action']})")
+
+        # Recalculate downstream / following train ETAs and headways across network
+        try:
+            from app.services.impact_engine import impact_engine
+            impact_engine.evaluate_and_recalculate_network_impact(train_id, data, bus=self.bus)
+        except Exception as e:
+            logger.debug(f"[PredictionService] Network impact cascade note: {e}")
+
         return prediction_event
 
 

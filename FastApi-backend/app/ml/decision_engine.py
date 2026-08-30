@@ -56,6 +56,9 @@ class DecisionEngine:
         elif platform_avail == "OCCUPIED" and dist_to_station < 2.0:
             safety_override_triggered = True
             primary_reason = f"Station platform OCCUPIED ({dist_to_station:.1f}km away)"
+        elif has_train_ahead and relative_speed > 20.0 and float(raw_features.get("distance_to_ahead_train_km", 10.0)) < 8.0:
+            safety_override_triggered = True
+            primary_reason = f"Rapid closing speed ({relative_speed:.1f}km/h) to leader train ahead ({float(raw_features.get('distance_to_ahead_train_km', 0.0)):.1f}km)"
 
         # 3. Hybrid Decision: ML Probability + Hard Safety Constraints
         if safety_override_triggered or conflict_probability >= 0.50:

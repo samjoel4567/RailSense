@@ -195,8 +195,10 @@ async def run_standalone_prediction_test():
 
     await bus.publish(telemetry_event)
 
-    assert len(received_events) == 1, "Expected 1 published PREDICTION event on EventBus"
-    pub_data = received_events[0].data
+    assert len(received_events) >= 1, "Expected published PREDICTION event(s) on EventBus"
+    local_preds = [e for e in received_events if e.data.get("train_id") == "LOCAL-101"]
+    assert len(local_preds) >= 1, "Expected PREDICTION event for LOCAL-101"
+    pub_data = local_preds[0].data
     assert pub_data["train_id"] == "LOCAL-101"
     assert "expected_delay_min" in pub_data
     assert "conflict_probability" in pub_data
