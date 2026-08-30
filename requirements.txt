@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+pydantic
+pandas
+numpy
+scikit-learn
+xgboost
+ultralytics
+opencv-python
+python-dotenv
+httpx
+websockets
+pydantic-settings
+matplotlib
