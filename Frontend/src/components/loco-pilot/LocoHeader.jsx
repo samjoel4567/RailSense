@@ -13,6 +13,11 @@ const TRAIN_OPTIONS_MAX = 8; // max trains shown in dropdown
 export default function LocoHeader({ data, simTime, activeCabId, cabTrain, allTrains = [], onSelectCab }) {
   const colors = cabTrain ? TYPE_COLORS[cabTrain.type] || TYPE_COLORS.LOCAL : TYPE_COLORS.LOCAL;
   const delayMin = Math.round(cabTrain?.delay || 0);
+  const trainName = data?.trainName || cabTrain?.id || 'LIVE CAB';
+  const serviceType = data?.serviceType || cabTrain?.type || 'RAIL';
+  const locoModel = data?.locoModel || 'LIVE ROLLING STOCK';
+  const cabId = data?.cabId || activeCabId;
+  const driverName = data?.driverName || 'ASSIGNED CREW';
 
   // Trains available for cab selection (show first 8 per type priority)
   const cabOptions = allTrains
@@ -41,9 +46,9 @@ export default function LocoHeader({ data, simTime, activeCabId, cabTrain, allTr
             </div>
             {cabTrain && (
               <div className="loco-train-meta font-mono">
-                <span className="loco-meta-type" style={{ color: colors.text }}>{cabTrain.type}</span>
+                <span className="loco-meta-type" style={{ color: colors.text }}>{serviceType}</span>
                 <span className="loco-meta-sep">·</span>
-                <span>{cabTrain.origin?.replace('STATION_','') || '–'} → {cabTrain.destination?.replace('STATION_','') || '–'}</span>
+                <span>{data?.route?.origin || cabTrain.origin?.replace('STATION_','') || '–'} → {data?.route?.destination || cabTrain.destination?.replace('STATION_','') || '–'}</span>
                 {delayMin > 0 && (
                   <span className="loco-delay-chip">+{delayMin} MIN DELAY</span>
                 )}
@@ -57,14 +62,14 @@ export default function LocoHeader({ data, simTime, activeCabId, cabTrain, allTr
           {/* Live status */}
           {cabTrain && (
             <div className="loco-status-chips">
-              <div className={`loco-status-chip chip-${(cabTrain.status || '').toLowerCase().replace(/\s/g,'-')}`}>
-                <span className="status-dot" />
-                {cabTrain.status || 'STANDBY'}
-              </div>
-              <div className={`loco-headway-chip hw-${(cabTrain.headwayStatus || 'SAFE').toLowerCase()}`}>
-                HW {cabTrain.headwayStatus || 'SAFE'}
-              </div>
+            <div className={`loco-status-chip chip-${(cabTrain.status || '').toLowerCase().replace(/\s/g,'-')}`}>
+              <span className="status-dot" />
+              {cabTrain.status || 'STANDBY'}
             </div>
+            <div className={`loco-headway-chip hw-${(cabTrain.headwayStatus || 'SAFE').toLowerCase()}`}>
+              HW {cabTrain.headwayStatus || 'SAFE'}
+            </div>
+          </div>
           )}
 
           {/* Cab switcher */}
@@ -83,6 +88,12 @@ export default function LocoHeader({ data, simTime, activeCabId, cabTrain, allTr
             </select>
           </div>
         </div>
+      </div>
+      <div className="loco-header-bottom font-mono" style={{ marginTop: 10, color: '#64748b', fontSize: 12 }}>
+        <span style={{ marginRight: 12 }}>{trainName}</span>
+        <span style={{ marginRight: 12 }}>{locoModel}</span>
+        <span style={{ marginRight: 12 }}>{cabId}</span>
+        <span>{driverName}</span>
       </div>
     </div>
   );

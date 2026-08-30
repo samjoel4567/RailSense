@@ -3,11 +3,14 @@ import { useSimulation } from '../../simulator/SimulationContext';
 
 export default function SimulatorSummaryBar() {
   const { state, status } = useSimulation();
+  const trains = state?.allTrains || state?.trains || [];
 
   const scenarioTitle = status.phaseMeta?.shortTitle || 'NORMAL OPERATIONS';
-  const risk = state.network.networkRiskScore;
-  const activeAlerts = state.network.activeAlertsCount;
-  const trainsInSection = 2;
+  const risk = state.networkMetrics?.networkRisk ?? state.network?.networkRiskScore ?? 0;
+  const riskCategory = state.networkMetrics?.riskCategory ?? state.network?.riskCategory ?? 'NOMINAL';
+  const activeAlerts = state.alerts?.length ?? state.network?.activeAlertsCount ?? 0;
+  const trainsInSection = trains.filter(t => !t.isDwelling && !t.hasReachedDestination).length;
+  const totalTrains = trains.length;
 
   // Calculate elapsed time from initial seconds
   const [hh, mm, ss] = status.simulationTime.split(':').map(Number);
@@ -27,7 +30,7 @@ export default function SimulatorSummaryBar() {
 
       <div className="sim-summary-item">
         <span className="summary-lbl">ACTIVE TRAINS IN SECTION:</span>
-        <span className="summary-val font-bold">{trainsInSection} (4 TOTAL)</span>
+        <span className="summary-val font-bold">{trainsInSection} MOVING ({totalTrains} TOTAL)</span>
       </div>
 
       <div className="summary-sep">│</div>
@@ -35,7 +38,7 @@ export default function SimulatorSummaryBar() {
       <div className="sim-summary-item">
         <span className="summary-lbl">NETWORK RISK:</span>
         <span className={`summary-val font-bold ${risk > 60 ? 'text-red' : risk > 30 ? 'text-amber' : 'text-green'}`}>
-          {risk} / 100 [{state.network.riskCategory}]
+          {risk} / 100 [{riskCategory}]
         </span>
       </div>
 

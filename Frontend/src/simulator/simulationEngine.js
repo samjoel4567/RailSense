@@ -21,6 +21,7 @@ import { predict as impactPredict } from './impactEngine';
 import { recalculateAllETAs } from './etaEngine';
 import { computeSignals, getEffectiveSpeedLimit } from './signalEngine';
 import { predict as predictionPredict } from './predictionEngine';
+import { mlPredictionProvider, ML_TRIGGER_EVENTS } from './MLPredictionProvider';
 
 // ─────────────────────────────────────────────────────────
 // Constants
@@ -61,6 +62,10 @@ export class SimulationEngine {
     this._addEvent('SIGNALS', null, 'All 10 station interlocking systems online');
 
     this.state = this.buildState();
+
+    // Start ML polling for the default cab train (LOCAL_101)
+    // MLPredictionProvider checks connectivity first, then begins polling
+    setTimeout(() => mlPredictionProvider.startPolling(this.activeCabTrainId), 500);
   }
 
   // ─────────────────────────────────────────────────────────
@@ -324,6 +329,16 @@ export class SimulationEngine {
     // Log new violations
     this._checkViolations(violations);
 
+    // ── ML change detection (does NOT fetch — only schedules if material change) ──
+    const cabTrain = this.trains.find(t => t.id === this.activeCabTrainId);
+    if (cabTrain) {
+      mlPredictionProvider.onSimulationTick(cabTrain, {
+        allTrains:    this.trains,
+        signalStates: this.signalStates,
+        stationStates: this.stationStates
+      });
+    }
+
     // Auto-advance phase
     if (this.phaseProgress >= 100 && this.autoPlay) {
       this.setPhase(this.currentPhase < TOTAL_PHASES ? this.currentPhase + 1 : 1);
@@ -558,6 +573,9 @@ export class SimulationEngine {
       this._addEvent('DECISION', trainId, `${trainId} — LOCO PILOT DECISION: PROCEED`);
       this._addEvent('DISPATCH', trainId, `${trainId} DEPARTURE AUTHORIZED`);
 
+      // ── Request immediate ML prediction refresh ──────────
+      mlPredictionProvider.onLocoPilotDecision(ML_TRIGGER_EVENTS.LOCO_PROCEED);
+
       // Update signal/route state
       this.notify();
 
@@ -583,6 +601,9 @@ export class SimulationEngine {
       }
       this._addEvent('DECISION', trainId, `${trainId} — LOCO PILOT DECISION: HOLD`);
       this._addEvent('WARNING',  trainId, `${trainId} HELD — delay accumulating`);
+
+      // ── Request immediate ML prediction refresh ──────────
+      mlPredictionProvider.onLocoPilotDecision(ML_TRIGGER_EVENTS.LOCO_HOLD);
 
       // Calculate cascading effects
       const affected = this.trains.filter(t =>
@@ -704,6 +725,8 @@ export class SimulationEngine {
   setActiveCab(trainId) {
     this.activeCabTrainId = trainId;
     this._addEvent('SYSTEM', trainId, `CAB SWITCHED → ${trainId}`);
+    // Start polling the ML backend for the newly selected train
+    mlPredictionProvider.startPolling(trainId);
     this.notify();
   }
 

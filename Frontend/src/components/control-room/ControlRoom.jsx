@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useNetworkState, useNetworkMetrics, useSimulationControls } from '../../simulator/SimulationContext';
+import { useNetworkState, useNetworkMetrics, useSimulationControls, useMLStatus } from '../../simulator/SimulationContext';
 import { STATION_CHAIN, STATIONS, SECTIONS } from '../../simulator/networkModel';
 import { signalAspectColor } from '../../simulator/signalEngine';
 import ControlRoomHeader from './ControlRoomHeader';
@@ -209,6 +209,7 @@ export default function ControlRoom() {
   const { allTrains, alerts, risk } = useNetworkState();
   const { metrics, conflicts }      = useNetworkMetrics();
   const { status }                  = useSimulationControls();
+  const { isConnected: mlConnected, alerts: mlAlerts, acknowledgeAlert } = useMLStatus();
 
   const [selectedTrainId, setSelectedTrainId] = useState(null);
   const [filterType, setFilterType]           = useState('ALL');
@@ -238,9 +239,65 @@ export default function ControlRoom() {
         <ControlRoomHeader
           onResetSelection={() => setSelectedTrainId(null)}
           selectedTrainId={selectedTrainId}
-          simTime={status.simulationTime}
-          phase={status.phase}
+          simTime={status?.simulationTime}
+          phase={status?.phase}
         />
+
+        {/* ML Backend Status Bar */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '8px 0', flexWrap: 'wrap'
+        }}>
+          <span
+            className="font-mono"
+            style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
+              padding: '3px 12px', borderRadius: 4, border: '1px solid',
+              ...(mlConnected
+                ? { background: '#f0fdf4', color: '#15803d', borderColor: '#86efac' }
+                : { background: '#f8fafc', color: '#94a3b8', borderColor: '#e2e8f0' })
+            }}
+          >
+            {mlConnected ? '● TRAINSENSE ML CONNECTED' : '○ ML BACKEND OFFLINE'}
+          </span>
+          {mlConnected && (
+            <span className="font-mono" style={{ fontSize: 9, color: '#64748b' }}>
+              {import.meta.env.VITE_ML_API_URL} · Polling active
+            </span>
+          )}
+        </div>
+
+        {/* Backend ML Alerts (from Correlation Engine) */}
+        {mlAlerts && mlAlerts.filter(a => !a.acknowledged).length > 0 && (
+          <div style={{
+            display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8
+          }}>
+            <span className="cr-event-log-title font-mono">ML BACKEND ALERTS ({mlAlerts.filter(a => !a.acknowledged).length})</span>
+            {mlAlerts.filter(a => !a.acknowledged).slice(0, 5).map(alert => (
+              <div
+                key={alert.id}
+                className={`cr-event-row cr-evt-${alert.severity === 'CRITICAL' ? 'critical' : alert.severity === 'HIGH' ? 'warning' : 'dispatch'}`}
+              >
+                <span className="cr-evt-time font-mono">{alert.timestamp ? new Date(alert.timestamp).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—'}</span>
+                <span className="cr-evt-train font-mono">{alert.trainId || 'SYSTEM'}</span>
+                <span className="cr-evt-msg">{alert.message}</span>
+                {alert.id && (
+                  <button
+                    onClick={() => acknowledgeAlert(alert.id)}
+                    className="font-mono"
+                    style={{
+                      marginLeft: 'auto', fontSize: 9, fontWeight: 700,
+                      padding: '2px 8px', borderRadius: 3, border: '1px solid #e2e8f0',
+                      background: '#ffffff', color: '#475569', cursor: 'pointer'
+                    }}
+                  >
+                    ACK
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Network Metrics Strip */}
         <NetworkMetricsStrip metrics={metrics} conflicts={conflicts} />

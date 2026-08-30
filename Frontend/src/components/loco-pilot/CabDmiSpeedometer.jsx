@@ -5,6 +5,8 @@ export default function CabDmiSpeedometer({ telemetry, route, signaling, safety 
   const limit = telemetry.permittedSpeedLimit;
   const target = telemetry.targetSpeed;
   const progress = route.progressPct;
+  const sectionLabel = route.currentSection || 'LIVE SECTION';
+  const destinationLabel = route.destination || 'LIVE DESTINATION';
 
   // Percentage of speed limit utilized
   const speedRatio = Math.min(100, Math.round((speed / limit) * 100));
@@ -18,8 +20,8 @@ export default function CabDmiSpeedometer({ telemetry, route, signaling, safety 
           <span className="toolbar-title">CAB DMI // ETCS DRIVER MACHINE INTERFACE</span>
         </div>
         <div className="toolbar-right">
-          <span className="dmi-status-pill text-green">RBC LINK: ACTIVE (100%)</span>
-          <span className="dmi-mode-pill">FS (FULL SUPERVISION)</span>
+          <span className="dmi-status-pill text-green">{signaling.radioBlockCenter || 'RBC LINK: ACTIVE'}</span>
+          <span className="dmi-mode-pill">{signaling.mode || 'FS (FULL SUPERVISION)'}</span>
         </div>
       </div>
 
@@ -84,8 +86,8 @@ export default function CabDmiSpeedometer({ telemetry, route, signaling, safety 
             {/* Status Item 1: Current Status */}
             <div className="hud-metric-box">
               <span className="hud-lbl">CURRENT STATUS</span>
-              <span className="hud-val-bold text-blue">IN SECTION B</span>
-              <span className="hud-sub">SOUTHBOUND ➔ STATION C</span>
+              <span className="hud-val-bold text-blue">IN {sectionLabel}</span>
+              <span className="hud-sub">{route.direction || 'SOUTHBOUND'} {route.directionArrow || '➔'} {destinationLabel}</span>
             </div>
 
             {/* Status Item 2: Destination & ETA */}
@@ -93,14 +95,14 @@ export default function CabDmiSpeedometer({ telemetry, route, signaling, safety 
               <span className="hud-lbl">NEXT DESTINATION</span>
               <div className="hud-val-group">
                 <span className="hud-val-bold">{route.destination}</span>
-                <span className="hud-plat-pill text-blue">P1</span>
+                <span className="hud-plat-pill text-blue">{route.platform || 'P1'}</span>
               </div>
-              <span className="hud-sub text-green font-bold">ETA: {route.etaToDestination} (14:36)</span>
+              <span className="hud-sub text-green font-bold">ETA: {route.etaToDestination || 'LIVE'}</span>
             </div>
 
             {/* Status Item 3: Progress Traversed */}
             <div className="hud-metric-box">
-              <span className="hud-lbl">SECTION B PROGRESS</span>
+              <span className="hud-lbl">SECTION PROGRESS</span>
               <div className="hud-progress-main">
                 <span className="hud-val-bold">{progress}%</span>
                 <span className="hud-dist">({route.distanceTraversedKm} / {route.currentSectionLengthKm} KM)</span>

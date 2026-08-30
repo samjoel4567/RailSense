@@ -1689,14 +1689,14 @@
    NETWORK METRICS BAR
    ========================================================================== */
 .network-metrics-bar {
-  background: #0f172a;
-  border: 1px solid #1e293b;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
   padding: 12px 20px;
   display: flex;
   align-items: center;
   gap: 16px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
   flex-wrap: wrap;
 }
 .metrics-bar-left {
@@ -1716,15 +1716,15 @@
 .dot-live { background: #10b981; animation: pulse-dot 1s infinite; }
 .dot-paused { background: #94a3b8; }
 @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-.phase-label { font-size: 10px; font-weight: 700; color: #3b82f6; letter-spacing: 0.1em; }
+.phase-label { font-size: 10px; font-weight: 700; color: #1d4ed8; letter-spacing: 0.1em; }
 .phase-name { font-size: 9px; color: #64748b; }
 .metrics-sim-time {
   display: flex;
   gap: 6px;
   align-items: center;
 }
-.sim-time-label { font-size: 9px; color: #475569; }
-.sim-time-val { font-size: 13px; font-weight: 700; color: #94a3b8; letter-spacing: 0.1em; }
+.sim-time-label { font-size: 9px; color: #94a3b8; letter-spacing: 0.06em; }
+.sim-time-val { font-size: 13px; font-weight: 700; color: #0f172a; letter-spacing: 0.1em; }
 
 .metrics-tiles-row {
   display: flex;
@@ -1736,8 +1736,8 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: #1e293b;
-  border: 1px solid #334155;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
   border-radius: 6px;
   padding: 8px 12px;
   min-width: 80px;
@@ -1749,14 +1749,14 @@
   animation: tile-blink 1.5s ease-in-out infinite;
 }
 @keyframes tile-blink { 0%, 100% { border-color: #ef4444; } 50% { border-color: #ef444466; } }
-.metric-main-val { font-size: 16px; font-weight: 700; letter-spacing: 0.04em; color: #e2e8f0; }
-.metric-sub-val { font-size: 9px; color: #64748b; }
-.metric-tile-label { font-size: 8px; color: #475569; text-align: center; letter-spacing: 0.08em; }
+.metric-main-val { font-size: 16px; font-weight: 700; letter-spacing: 0.04em; color: #0f172a; }
+.metric-sub-val { font-size: 9px; color: #94a3b8; }
+.metric-tile-label { font-size: 8px; color: #64748b; text-align: center; letter-spacing: 0.08em; }
 .text-green { color: #10b981 !important; }
 .text-amber { color: #f59e0b !important; }
 .text-red { color: #ef4444 !important; }
-.text-blue { color: #3b82f6 !important; }
-.text-muted { color: #64748b !important; }
+.text-blue { color: #1d4ed8 !important; }
+.text-muted { color: #94a3b8 !important; }
 
 .metrics-bar-right {
   display: flex;
@@ -1770,7 +1770,7 @@
   align-items: center;
   gap: 4px;
 }
-.speed-ctrl-label { font-size: 9px; color: #475569; letter-spacing: 0.1em; }
+.speed-ctrl-label { font-size: 9px; color: #64748b; letter-spacing: 0.1em; }
 .speed-ctrl-btns {
   display: flex;
   gap: 3px;
@@ -1780,15 +1780,15 @@
   font-size: 10px;
   font-weight: 700;
   padding: 3px 7px;
-  border: 1px solid #334155;
+  border: 1px solid #e2e8f0;
   border-radius: 3px;
-  background: transparent;
+  background: #f8fafc;
   color: #64748b;
   cursor: pointer;
   transition: all 0.15s;
 }
-.speed-btn:hover { border-color: #3b82f6; color: #3b82f6; }
-.speed-btn.speed-btn-active { background: #1e3a5f; border-color: #3b82f6; color: #60a5fa; }
+.speed-btn:hover { border-color: #3b82f6; color: #1d4ed8; background: #eff6ff; }
+.speed-btn.speed-btn-active { background: #eff6ff; border-color: #3b82f6; color: #1d4ed8; font-weight: 800; }
 
 /* ==========================================================================
    TRAIN INSPECTOR PANEL

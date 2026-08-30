@@ -36,7 +36,7 @@ export default function SignalSafetyPanel({ signaling, safety, route }) {
           <div className="safety-cell">
             <span className="safety-lbl">MOVEMENT AUTHORITY (EOA):</span>
             <span className="safety-val text-green font-bold">+{signaling.movementAuthorityMeters} M (CLEAR)</span>
-            <span className="safety-sub">UNRESTRICTED UP TO KM 24.8</span>
+            <span className="safety-sub">LIVE AUTHORITY TO DESTINATION</span>
           </div>
 
           <div className="safety-cell">
@@ -54,7 +54,7 @@ export default function SignalSafetyPanel({ signaling, safety, route }) {
           <div className="safety-cell">
             <span className="safety-lbl">TRACK CIRCUIT CLEARANCE:</span>
             <span className="safety-val text-green font-bold">{safety.trackCircuitOccupancy}</span>
-            <span className="safety-sub">SECTION B BLOCKS 01-14 LOCKED</span>
+            <span className="safety-sub">LIVE SECTION MONITORING</span>
           </div>
 
         </div>

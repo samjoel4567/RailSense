@@ -1,12 +1,12 @@
 import React from 'react';
 import { signalAspectColor } from '../../simulator/signalEngine';
+import { useMLStatus } from '../../simulator/SimulationContext';
 
 /**
  * DepartureDecisionPanel — The core Loco Pilot decision workflow.
- * Shows live AI prediction + PROCEED / HOLD buttons.
+ * Displays REAL ML predictions from the backend when connected.
+ * Falls back to deterministic mock predictions when ML is unreachable.
  * The AI NEVER moves the train — the Loco Pilot decides.
- *
- * [SIMULATION PREDICTION — Demo Data]
  */
 export default function DepartureDecisionPanel({
   cabTrain,
@@ -17,17 +17,38 @@ export default function DepartureDecisionPanel({
   onProceed,
   onHold
 }) {
+  const { isConnected: mlConnected } = useMLStatus();
   if (!cabTrain) return null;
 
   const pred = prediction || {};
-  const rec  = pred.recommendedAction || 'PROCEED';
+  const backendReason = pred.reason || pred._raw?.reason || pred._raw?.recommendation_reason || pred._raw?.explanation || '';
+  const rec  = (pred.recommendedAction || 'PROCEED').toUpperCase();
   const isHeld = decision === 'HOLD' || cabTrain.status === 'HELD';
 
   // Signal aspect styling
   const signalColor = signalAspectColor(pred.signalAspect || 'GREEN');
-  const recColor = rec === 'PROCEED' ? '#15803d' : '#b91c1c';
-  const recBg    = rec === 'PROCEED' ? '#f0fdf4' : '#fef2f2';
+  const recColor  = rec === 'PROCEED' ? '#15803d' : '#b91c1c';
+  const recBg     = rec === 'PROCEED' ? '#f0fdf4' : '#fef2f2';
   const recBorder = rec === 'PROCEED' ? '#86efac' : '#fca5a5';
+
+  // Format ML-sourced values — null means backend hasn't provided them yet
+  const conflictPct = pred.conflictProbability != null
+    ? `${Math.round(pred.conflictProbability * 100)}%`
+    : '—';
+  const confidencePct = pred.confidence != null
+    ? `${Math.round(pred.confidence * 100)}%`
+    : '—';
+  const timeSaved = pred.estimatedTimeSaved != null
+    ? `${parseFloat(pred.estimatedTimeSaved).toFixed(1)} MIN`
+    : '—';
+  const predictedDelay = pred.predictedDelay != null
+    ? `+${parseFloat(pred.predictedDelay).toFixed(1)} MIN`
+    : null;
+
+  // Data source badge
+  const isLiveML  = pred.isMLPrediction && mlConnected && pred.isLive;
+  const isMockML  = pred.isMLPrediction && mlConnected && !pred.isLive;
+  const isMock    = !pred.isMLPrediction;
 
   return (
     <div className="departure-decision-card">
@@ -35,139 +56,178 @@ export default function DepartureDecisionPanel({
       {/* Header */}
       <div className="dept-header">
         <div className="dept-header-left">
-          <span className="dept-badge font-mono">AI TRAFFIC PREDICTION</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className="dept-badge font-mono">AI TRAFFIC PREDICTION</span>
+            {/* ML connectivity badge */}
+            <span
+              className="font-mono"
+              style={{
+                fontSize: 9, fontWeight: 700, letterSpacing: '0.1em',
+                padding: '2px 8px', borderRadius: 3, border: '1px solid',
+                ...(mlConnected
+                  ? isLiveML
+                    ? { background: '#f0fdf4', color: '#15803d', borderColor: '#86efac' }
+                    : { background: '#fffbeb', color: '#92400e', borderColor: '#fde68a' }
+                  : { background: '#f8fafc', color: '#94a3b8', borderColor: '#e2e8f0' })
+              }}
+            >
+              {mlConnected ? (isLiveML ? '● ML LIVE' : '○ ML CONNECTED') : '○ ML OFFLINE'}
+            </span>
+          </div>
           <h3 className="dept-title">DEPARTURE DECISION SUPPORT</h3>
-          <p className="dept-subtitle font-mono">SIMULATION · PREDICTION — Operator retains full authority</p>
+          <p className="dept-subtitle font-mono">
+            {isLiveML
+              ? `REAL ML PREDICTION · ${pred.dataSource || 'TRAINSENSE'} · Operator retains full authority`
+              : isMockML
+              ? 'ML CONNECTED · Simulation data active · Operator retains full authority'
+              : 'DETERMINISTIC MODEL · ML backend offline · Operator retains full authority'}
+          </p>
         </div>
-        <div className={`dept-status-indicator ${isHeld ? 'status-held' : 'status-waiting'}`}>
+
+        <div
+          className={`dept-status-indicator ${isHeld ? 'status-held' : 'status-waiting'}`}
+        >
           <span className="dept-status-dot" />
           <span className="dept-status-text font-mono">
-            {isHeld ? 'HELD' : cabTrain.status || 'WAITING'}
+            {isHeld ? 'TRAIN HELD' : cabTrain.status || 'DWELLING'}
           </span>
         </div>
       </div>
 
       <div className="dept-body">
 
-        {/* ── Traffic Ahead Summary ── */}
-        {pred.leaderTrainId && (
+        {/* ── Traffic Ahead ───────────────────────────────── */}
+        {trafficAhead && trafficAhead.length > 0 && (
           <div className="dept-traffic-block">
-            <div className="traffic-block-label font-mono">TRAFFIC AHEAD</div>
-            <div className="traffic-detail-row">
-              <div className="traffic-train-chip font-mono">{pred.leaderTrainId}</div>
-              <div className="traffic-metrics font-mono">
-                <span>
-                  {pred.leaderSpeed !== null ? `${Math.round(pred.leaderSpeed || 0)} KM/H` : '–'}
-                </span>
-                <span className="traffic-sep">·</span>
-                <span>
-                  HEADWAY {pred.headwayMinutes !== undefined ? `${pred.headwayMinutes?.toFixed(1)} MIN` : '–'}
-                </span>
-                <span className={`headway-badge hw-badge-${(pred.headwayStatus || 'safe').toLowerCase()}`}>
-                  {pred.headwayStatus || 'SAFE'}
-                </span>
+            <div className="traffic-block-label font-mono">IMMEDIATE TRAFFIC AHEAD</div>
+            {trafficAhead.slice(0, 2).map((t, i) => (
+              <div key={i} className="traffic-detail-row">
+                <span className="traffic-train-chip font-mono">{t.id}</span>
+                <div className="traffic-metrics font-mono">
+                  <span>{t.speed ?? '—'} km/h</span>
+                  <span className="traffic-sep">|</span>
+                  <span>
+                    {t.etaAbsolute
+                      ? `ETA ${new Date(t.etaAbsolute).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
+                      : t.etaMinutes
+                        ? `ETA ~${Math.round(t.etaMinutes)} min`
+                        : '—'
+                    }
+                  </span>
+                  <span className="traffic-sep">|</span>
+                  <span
+                    className={`headway-badge font-mono hw-badge-${
+                      t.headwayStatus === 'CONSTRAINED' ? 'constrained'
+                      : t.headwayStatus === 'CAUTION'   ? 'caution'
+                      : 'safe'
+                    }`}
+                  >
+                    {t.headwayStatus || 'SAFE'}
+                  </span>
+                </div>
               </div>
-            </div>
+            ))}
           </div>
         )}
 
-        {/* ── Junction Conflict ── */}
-        {pred.junctionConflict && (
-          <div className="dept-junction-block">
-            <span className="junction-label font-mono">JUNCTION {pred.junctionConflict.junctionId}</span>
-            <span className="junction-train font-mono">{pred.junctionConflict.conflictingTrainId}</span>
-            <span className="junction-eta font-mono">
-              CLEARS IN ~{Math.round(pred.junctionConflict.clearanceTimeSec / 60)} MIN
-            </span>
-          </div>
-        )}
-
-        {/* ── Signal State ── */}
+        {/* ── Signal ──────────────────────────────────────── */}
         <div className="dept-signal-row">
-          <span className="signal-row-label font-mono">ENTRY SIGNAL</span>
+          <span className="signal-row-label font-mono">DEPARTURE SIGNAL</span>
           <span
             className="signal-aspect-badge font-mono"
-            style={{ color: signalColor, borderColor: signalColor, background: `${signalColor}15` }}
+            style={{
+              color: signalColor.text,
+              background: signalColor.bg,
+              borderColor: signalColor.border
+            }}
           >
             {pred.signalAspect || 'GREEN'}
           </span>
+          {pred.clearanceTime != null && (
+            <span className="font-mono" style={{ fontSize: 10, color: '#64748b', marginLeft: 8 }}>
+              CLEARS IN {pred.clearanceTime}s
+            </span>
+          )}
         </div>
 
-        {/* ── AI Recommendation ── */}
+        {/* ── ML Recommendation block ──────────────────────── */}
         <div
           className="dept-recommendation-block"
           style={{ background: recBg, border: `1px solid ${recBorder}` }}
         >
           <div className="rec-header">
-            <span className="rec-label font-mono">RECOMMENDATION</span>
-            <span
-              className="rec-action font-mono font-bold"
-              style={{ color: recColor }}
-            >
+            <span className="rec-label font-mono">ML RECOMMENDATION</span>
+            <span className="font-mono" style={{ fontSize: 13, fontWeight: 800, color: recColor, letterSpacing: '0.06em' }}>
               {rec}
             </span>
           </div>
-          <p className="rec-reason">{pred.reason || 'Calculating...'}</p>
 
-          <div className="rec-metrics-row font-mono">
-            {pred.estimatedTimeSaved > 0 && (
-              <div className="rec-metric green">
-                <span>TIME SAVED</span>
-                <span>~{pred.estimatedTimeSaved} MIN</span>
+          {backendReason && (
+            <p className="rec-reason font-mono">{backendReason}</p>
+          )}
+
+          {/* Metrics grid — only show fields the backend actually returned */}
+          <div className="rec-metrics-row">
+
+            <div className={`rec-metric font-mono ${conflictPct !== '—' && pred.conflictProbability > 0.3 ? 'amber' : 'green'}`}>
+              <span>CONFLICT PROB</span>
+              <span>{conflictPct}</span>
+            </div>
+
+            <div className={`rec-metric font-mono ${confidencePct !== '—' ? 'green' : 'muted'}`}>
+              <span>CONFIDENCE</span>
+              <span>{confidencePct}</span>
+            </div>
+
+            <div className={`rec-metric font-mono ${timeSaved !== '—' ? 'green' : 'muted'}`}>
+              <span>TIME SAVED</span>
+              <span>{timeSaved}</span>
+            </div>
+
+            {predictedDelay && (
+              <div className="rec-metric font-mono amber">
+                <span>PREDICTED DELAY</span>
+                <span>{predictedDelay}</span>
               </div>
             )}
-            {pred.predictedDelay > 0 && (
-              <div className="rec-metric amber">
-                <span>DELAY IF HELD</span>
-                <span>+{pred.predictedDelay} MIN</span>
+
+            {cabTrain.headwaySec != null && (
+              <div className={`rec-metric font-mono ${cabTrain.headwaySec > 480 ? 'green' : cabTrain.headwaySec > 288 ? 'amber' : 'red'}`}>
+                <span>HEADWAY</span>
+                <span>{Math.round(cabTrain.headwaySec / 60)} MIN</span>
               </div>
             )}
-            {pred.conflictProbability !== undefined && (
-              <div className={`rec-metric ${pred.conflictProbability > 0.5 ? 'red' : 'muted'}`}>
-                <span>CONFLICT PROB</span>
-                <span>{Math.round(pred.conflictProbability * 100)}%</span>
-              </div>
-            )}
-            {pred.etaConfidence !== undefined && (
-              <div className="rec-metric muted">
-                <span>ETA CONFIDENCE</span>
-                <span>{Math.round(pred.etaConfidence * 100)}%</span>
-              </div>
-            )}
+
           </div>
         </div>
 
-        {/* ── Decision Buttons ── */}
+        {/* ── Decision Buttons ─────────────────────────────── */}
         <div className="dept-action-buttons">
-          <div className="action-buttons-label font-mono">LOCO PILOT DECISION</div>
+          <span className="action-buttons-label font-mono">LOCO PILOT DECISION — OPERATOR HAS FINAL AUTHORITY</span>
           <div className="action-buttons-row">
             <button
-              className={`btn-depart-proceed ${decision === 'PROCEED' ? 'btn-active-proceed' : ''}`}
+              className={`btn-depart-proceed font-mono ${decision === 'PROCEED' ? 'btn-active-proceed' : ''}`}
               onClick={onProceed}
-              disabled={decision === 'PROCEED' && !cabTrain.isDwelling}
             >
               <span className="btn-icon">▶</span>
-              <span>PROCEED</span>
+              PROCEED
             </button>
-
             <button
-              className={`btn-depart-hold ${decision === 'HOLD' ? 'btn-active-hold' : ''}`}
+              className={`btn-depart-hold font-mono ${decision === 'HOLD' ? 'btn-active-hold' : ''}`}
               onClick={onHold}
             >
-              <span className="btn-icon">■</span>
-              <span>HOLD</span>
+              <span className="btn-icon">⏸</span>
+              HOLD
             </button>
           </div>
-
-          {/* Decision confirmation */}
-          {decision === 'PROCEED' && (
-            <div className="decision-confirmed green font-mono">
-              ✓ PROCEED CONFIRMED — Train is departing
-            </div>
-          )}
-          {decision === 'HOLD' && (
-            <div className="decision-confirmed amber font-mono">
-              ■ HOLD CONFIRMED — Train held at station. Delay accumulating.
+          {decision && (
+            <div className={`decision-confirmed font-mono ${decision === 'PROCEED' ? 'green' : 'amber'}`}>
+              ✓ DECISION RECORDED: {decision}
+              {pred.lastMLUpdate && (
+                <span style={{ marginLeft: 8, fontWeight: 400, fontSize: 9, color: '#94a3b8' }}>
+                  · ML {new Date(pred.lastMLUpdate).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </span>
+              )}
             </div>
           )}
         </div>

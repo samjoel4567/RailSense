@@ -1,37 +1,72 @@
 /**
  * RAIL//AI Prediction Engine
- * ML-ready interface for departure recommendations, conflict probability, and ETA prediction.
  *
- * Current implementation: MockPredictionProvider (deterministic rules)
- * Future swap: replace MockPredictionProvider with MLPredictionProvider
- * The UI never knows which provider is active.
+ * Provider hierarchy:
+ *   1. MLPredictionProvider  → polls GET /api/v1/predictions/{train_id} every 1.5s
+ *      (auto-starts; falls back to mock when backend unreachable)
+ *   2. MockPredictionProvider → deterministic rules, always available
  *
- * SIMULATION / PREDICTION DATA — For demonstration purposes only.
+ * UI components NEVER know which provider is active.
+ * The only file that calls the ML API is src/services/mlPredictionClient.js.
  */
 
 import { SECTIONS, STATIONS, STATION_CHAIN } from './networkModel';
 import { MIN_HEADWAY_SEC, calculateHeadway, findImmediateLeader } from './headwayEngine';
+import { mlPredictionProvider } from './MLPredictionProvider';
 
 // ─────────────────────────────────────────────────────────
-// Provider Interface (swap this for ML later)
+// Provider registry
 // ─────────────────────────────────────────────────────────
-let activeProvider = null;
+let _customProvider = null;
 
+/** Override the active provider (used in tests or for manual mock switching). */
 export function setPredictionProvider(provider) {
-  activeProvider = provider;
+  _customProvider = provider;
 }
 
 /**
- * Main prediction interface.
- * @param {Object} train - the train requesting prediction (typically the cab train)
- * @param {Object} networkState - { trains, stationStates, sectionStates, simulationTimeSec, signalStates }
+ * Return the latest ML prediction for a train synchronously.
+ * MLPredictionProvider keeps a cached `latestPrediction` updated in the background.
+ * This function merges the live ML result with the mock result:
+ *   - If ML has a non-null value → use it
+ *   - Otherwise → use mock's value
+ *
+ * @param {Object} train - the cab train
+ * @param {Object} networkState
  * @returns {PredictionResult}
  */
 export function predict(train, networkState) {
-  if (activeProvider) {
-    return activeProvider.predict(train, networkState);
-  }
-  return mockPredict(train, networkState);
+  // Custom override (tests / manual)
+  if (_customProvider) return _customProvider.predict(train, networkState);
+
+  // Always compute the mock (deterministic, instant, always available)
+  const mock = mockPredict(train, networkState);
+
+  // Get the latest ML prediction from the background poller
+  const ml = mlPredictionProvider.latestPrediction;
+
+  // If ML backend has no data for this specific train, return mock
+  if (!ml || ml.trainId !== train?.id) return mock;
+
+  // Merge: ML fields take priority when non-null, mock fills in nulls
+  return {
+    ...mock,
+    // ML-sourced fields (may be null if backend hasn't populated yet)
+    recommendedAction:   ml.recommendedAction   ?? mock.recommendedAction,
+    conflictProbability: ml.conflictProbability ?? mock.conflictProbability,
+    confidence:          ml.confidence          ?? mock.etaConfidence,
+    predictedDelay:      ml.predictedDelay      ?? mock.predictedDelay,
+    estimatedTimeSaved:  ml.estimatedTimeSaved  ?? mock.estimatedTimeSaved,
+    eta:                 ml.eta                 ?? mock.etaSeconds,
+    clearanceTime:       ml.clearanceTime       ?? null,
+    hasConflict:         ml.hasConflict         ?? false,
+    // Source indicator for the UI
+    isMLPrediction:      true,
+    isLive:              ml.isLive,
+    dataSource:          ml.dataSource,
+    lastMLUpdate:        ml.lastUpdated,
+    backendConnected:    mlPredictionProvider.isConnected
+  };
 }
 
 // ─────────────────────────────────────────────────────────

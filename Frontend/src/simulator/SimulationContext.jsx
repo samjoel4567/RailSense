@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { simulationEngine } from './simulationEngine';
+import { mlPredictionProvider } from './MLPredictionProvider';
 import { STATIONS, STATION_CHAIN, SECTIONS } from './networkModel';
+import { acknowledgeAlert } from '../services/mlPredictionClient';
 
 const SimulationContext = createContext(null);
 
@@ -15,6 +17,29 @@ export function SimulationProvider({ children }) {
     });
     return () => unsubscribe();
   }, []);
+
+  // ── ML backend connectivity + alerts ──────────────────────────────
+  const [mlStatus, setMlStatus] = useState({
+    isConnected:  mlPredictionProvider.isConnected,
+    prediction:   mlPredictionProvider.latestPrediction,
+    alerts:       mlPredictionProvider.latestAlerts
+  });
+
+  useEffect(() => {
+    const unsub = mlPredictionProvider.subscribe((payload) => {
+      setMlStatus({
+        isConnected: payload.isConnected,
+        prediction:  payload.prediction,
+        alerts:      payload.alerts
+      });
+    });
+    return () => unsub();
+  }, []);
+
+  // ML controls
+  const mlControls = useMemo(() => ({
+    acknowledgeAlert: (alertId) => acknowledgeAlert(alertId)
+  }), []);
 
   // ── Controls exposed to all pages ──────────────────────
   const controls = useMemo(() => ({
@@ -45,7 +70,7 @@ export function SimulationProvider({ children }) {
   }), []);
 
   return (
-    <SimulationContext.Provider value={{ state: simState, status: simStatus, controls }}>
+    <SimulationContext.Provider value={{ state: simState, status: simStatus, controls, mlStatus, mlControls }}>
       {children}
     </SimulationContext.Provider>
   );
@@ -131,7 +156,7 @@ export function useImpactAnalysis() {
  * All data comes from allTrains[activeCabTrainId].
  */
 export function useLocoPilotState() {
-  const { state, controls } = useSimulation();
+  const { state, controls, mlStatus } = useSimulation();
   const allTrains = state.allTrains || [];
   const activeCabId = state.activeCabTrainId || 'LOCAL_101';
   const cabTrain = allTrains.find(t => t.id === activeCabId) || null;
@@ -169,7 +194,10 @@ export function useLocoPilotState() {
 
     // Loco Pilot decision state
     decision: state.locoPilotDecisions?.[activeCabId] || 'IDLE',
-    prediction: state.cabPrediction || null,
+    prediction:
+      (mlStatus?.isConnected && mlStatus?.prediction?.trainId === activeCabId)
+        ? mlStatus.prediction
+        : null,
 
     // Controls
     locoPilotDecide: controls.locoPilotDecide,
@@ -259,5 +287,24 @@ export function useStationMasterLive(stationId) {
     arrivals,
     signalStates,
     allTrains
+  };
+}
+
+// ── ML Status hook ─────────────────────────────────────────────────────────
+/**
+ * Provides live ML backend status to any component.
+ * Returns:
+ *   isConnected   {boolean} — whether the ML API is reachable
+ *   prediction    {Object|null} — latest normalised prediction for the active cab train
+ *   alerts        {Array} — latest operational risk alerts from ML backend
+ *   acknowledgeAlert {Function} — acknowledge a specific alert by ID
+ */
+export function useMLStatus() {
+  const { mlStatus, mlControls } = useSimulation();
+  return {
+    isConnected:      mlStatus?.isConnected ?? false,
+    prediction:       mlStatus?.prediction  ?? null,
+    alerts:           mlStatus?.alerts      ?? [],
+    acknowledgeAlert: mlControls?.acknowledgeAlert ?? (() => {})
   };
 }
