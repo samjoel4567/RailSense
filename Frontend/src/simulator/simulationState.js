@@ -24,7 +24,7 @@ export function computeSimulationState(params = {}) {
     phaseProgress = 0,
     simTime = '14:20:00',
     simTimeSec = null,
-    activeCabTrainId = 'LOCAL_101',
+    activeCabTrainId = null,
     trainKinematics = {},
     eventLog = [],
     departureEvaluation = {},
@@ -539,20 +539,21 @@ export function computeSimulationState(params = {}) {
     riskBreakdown: risk.breakdown
   };
 
-  // 4. Loco Pilot Dataset (Supports both LOCAL_101 and EXPRESS_201 cabs)
-  const isLocalCab = activeCabTrainId === 'LOCAL_101';
+  // 4. Loco Pilot Dataset (Supports the selected local cab or EXPRESS_201 fallback)
+  const isLocalCab = String(activeCabTrainId || '').startsWith('LOCAL_');
   const activeTrain = isLocalCab ? local101 : express201;
+  const activeCabLabel = activeCabTrainId || (isLocalCab ? 'LOCAL' : 'EXPRESS_201');
 
   const distTraversed = activeTrain.distanceTraversedKm;
   const distRemaining = activeTrain.distanceRemainingKm;
   const currentSpd = Math.round(activeTrain.speed);
 
   const locoPilotData = {
-    trainId: isLocalCab ? 'LOCAL_101' : 'EXPRESS_201',
-    trainName: isLocalCab ? 'Regional Commuter Shuttle 101' : 'Intercity Superfast Express 201',
+    trainId: isLocalCab ? activeCabLabel : 'EXPRESS_201',
+    trainName: isLocalCab ? `Regional Commuter Shuttle ${activeCabLabel.replace('LOCAL_', '')}` : 'Intercity Superfast Express 201',
     serviceType: isLocalCab ? 'PASSENGER_LOCAL' : 'PASSENGER_EXPRESS',
     locoModel: isLocalCab ? 'MEMU-3000 / AC Traction' : 'WAP-7 / 3-Phase AC Electric',
-    cabId: isLocalCab ? 'CAB-1 (LOCAL_101 LEADING)' : 'CAB-1 (EXPRESS_201 LEADING)',
+    cabId: isLocalCab ? `CAB-1 (${activeCabLabel} LEADING)` : 'CAB-1 (EXPRESS_201 LEADING)',
     driverName: isLocalCab ? 'Capt. V. Nair (LP-402)' : 'Capt. R. Sharma (LP-884)',
     route: {
       origin: 'Station B (Central Junction)',
@@ -607,7 +608,7 @@ export function computeSimulationState(params = {}) {
       trackCircuitOccupancy: phase === 5 ? 'RESTRICTED BLOCKS 12-14' : 'NOMINAL CLEARANCE'
     },
     departureWorkflow: {
-      trainId: 'LOCAL_101',
+      trainId: activeCabLabel,
       departureState: local101.departureState,
       location: 'Station B / Platform 1',
       destination: 'Station C',
@@ -629,7 +630,7 @@ export function computeSimulationState(params = {}) {
       { km: 0.0, name: 'STATION B [P1]', type: 'STATION_ORIGIN', passed: distTraversed > 0.1, note: isLocalCab ? 'Platform 1' : 'Departed' },
       { km: 3.2, name: 'SWITCH SW-B1', type: 'INTERLOCKING', passed: distTraversed > 3.2, note: 'Normal locked' },
       { km: 11.5, name: 'JUNCTION J-02', type: 'JUNCTION', passed: distTraversed > 11.5, note: express201.progressPct >= 58 ? 'Cleared' : 'Conflict Area' },
-      { km: parseFloat(distTraversed.toFixed(1)), name: `CURRENT (${isLocalCab ? 'LOCAL_101' : 'EXPRESS_201'})`, type: 'TRAIN_CURSOR', isCurrent: true, note: `Speed ${currentSpd} km/h` },
+      { km: parseFloat(distTraversed.toFixed(1)), name: `CURRENT (${isLocalCab ? activeCabLabel : 'EXPRESS_201'})`, type: 'TRAIN_CURSOR', isCurrent: true, note: `Speed ${currentSpd} km/h` },
       { km: 21.4, name: 'BRAKING CURVE', type: 'DECEL_POINT', passed: distTraversed > 21.4, note: 'Target approach' },
       { km: 23.4, name: 'SIGNAL SIG-C1', type: 'SIGNAL', passed: distTraversed > 23.4, note: 'Approach signal' },
       { km: 24.8, name: 'STATION C [P1]', type: 'STATION_DESTINATION', passed: distTraversed >= 24.8, note: 'Berth reserved' }
@@ -664,6 +665,9 @@ export function computeSimulationState(params = {}) {
     cabTrain:           params.cabTrain           || null,
     cabPrediction:      params.cabPrediction      || null,
     activeCabTrainId:   params.activeCabTrainId   || activeCabTrainId,
-    locoPilotDecisions: params.locoPilotDecisions || {}
+    locoPilotDecisions: params.locoPilotDecisions || {},
+    // ── Intrusion state (v4) ──
+    intrusionState: params.intrusionState || { active: [], history: [] },
+    departureEvaluation: params.departureEvaluation || departureEvaluation
   };
 }

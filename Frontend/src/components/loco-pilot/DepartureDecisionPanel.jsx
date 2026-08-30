@@ -22,33 +22,36 @@ export default function DepartureDecisionPanel({
 
   const pred = prediction || {};
   const backendReason = pred.reason || pred._raw?.reason || pred._raw?.recommendation_reason || pred._raw?.explanation || '';
-  const rec  = (pred.recommendedAction || 'PROCEED').toUpperCase();
+  const hasLivePrediction =
+    mlConnected &&
+    pred?.isMLPrediction &&
+    pred?.trainId === cabTrain.id &&
+    (pred.recommendedAction || pred.conflictProbability != null || pred.confidence != null || pred.predictedDelay != null);
+  const rec  = hasLivePrediction ? (pred.recommendedAction || 'PROCEED').toUpperCase() : 'ML NOT CONNECTED';
   const isHeld = decision === 'HOLD' || cabTrain.status === 'HELD';
 
   // Signal aspect styling
-  const signalColor = signalAspectColor(pred.signalAspect || 'GREEN');
-  const recColor  = rec === 'PROCEED' ? '#15803d' : '#b91c1c';
-  const recBg     = rec === 'PROCEED' ? '#f0fdf4' : '#fef2f2';
-  const recBorder = rec === 'PROCEED' ? '#86efac' : '#fca5a5';
+  const signalColor = signalAspectColor((hasLivePrediction && pred.signalAspect) || 'GRAY');
+  const recColor  = hasLivePrediction ? (rec === 'PROCEED' ? '#15803d' : '#b91c1c') : '#64748b';
+  const recBg     = hasLivePrediction ? (rec === 'PROCEED' ? '#f0fdf4' : '#fef2f2') : '#f8fafc';
+  const recBorder = hasLivePrediction ? (rec === 'PROCEED' ? '#86efac' : '#fca5a5') : '#cbd5e1';
 
   // Format ML-sourced values — null means backend hasn't provided them yet
-  const conflictPct = pred.conflictProbability != null
+  const conflictPct = hasLivePrediction && pred.conflictProbability != null
     ? `${Math.round(pred.conflictProbability * 100)}%`
-    : '—';
-  const confidencePct = pred.confidence != null
+    : 'ML NOT CONNECTED';
+  const confidencePct = hasLivePrediction && pred.confidence != null
     ? `${Math.round(pred.confidence * 100)}%`
-    : '—';
-  const timeSaved = pred.estimatedTimeSaved != null
+    : 'ML NOT CONNECTED';
+  const timeSaved = hasLivePrediction && pred.estimatedTimeSaved != null
     ? `${parseFloat(pred.estimatedTimeSaved).toFixed(1)} MIN`
-    : '—';
-  const predictedDelay = pred.predictedDelay != null
+    : 'ML NOT CONNECTED';
+  const predictedDelay = hasLivePrediction && pred.predictedDelay != null
     ? `+${parseFloat(pred.predictedDelay).toFixed(1)} MIN`
     : null;
 
   // Data source badge
-  const isLiveML  = pred.isMLPrediction && mlConnected && pred.isLive;
-  const isMockML  = pred.isMLPrediction && mlConnected && !pred.isLive;
-  const isMock    = !pred.isMLPrediction;
+  const isLiveML  = hasLivePrediction && pred.isLive;
 
   return (
     <div className="departure-decision-card">
@@ -64,23 +67,19 @@ export default function DepartureDecisionPanel({
               style={{
                 fontSize: 9, fontWeight: 700, letterSpacing: '0.1em',
                 padding: '2px 8px', borderRadius: 3, border: '1px solid',
-                ...(mlConnected
-                  ? isLiveML
-                    ? { background: '#f0fdf4', color: '#15803d', borderColor: '#86efac' }
-                    : { background: '#fffbeb', color: '#92400e', borderColor: '#fde68a' }
-                  : { background: '#f8fafc', color: '#94a3b8', borderColor: '#e2e8f0' })
+                ...(isLiveML
+                  ? { background: '#f0fdf4', color: '#15803d', borderColor: '#86efac' }
+                  : { background: '#f8fafc', color: '#64748b', borderColor: '#cbd5e1' })
               }}
             >
-              {mlConnected ? (isLiveML ? '● ML LIVE' : '○ ML CONNECTED') : '○ ML OFFLINE'}
+              {isLiveML ? '● ML LIVE' : '○ ML NOT CONNECTED'}
             </span>
           </div>
           <h3 className="dept-title">DEPARTURE DECISION SUPPORT</h3>
           <p className="dept-subtitle font-mono">
             {isLiveML
               ? `REAL ML PREDICTION · ${pred.dataSource || 'TRAINSENSE'} · Operator retains full authority`
-              : isMockML
-              ? 'ML CONNECTED · Simulation data active · Operator retains full authority'
-              : 'DETERMINISTIC MODEL · ML backend offline · Operator retains full authority'}
+              : 'ML NOT CONNECTED · No live prediction data available · Operator retains full authority'}
           </p>
         </div>
 
@@ -141,9 +140,9 @@ export default function DepartureDecisionPanel({
               borderColor: signalColor.border
             }}
           >
-            {pred.signalAspect || 'GREEN'}
+            {hasLivePrediction ? (pred.signalAspect || 'GREEN') : 'ML NOT CONNECTED'}
           </span>
-          {pred.clearanceTime != null && (
+          {hasLivePrediction && pred.clearanceTime != null && (
             <span className="font-mono" style={{ fontSize: 10, color: '#64748b', marginLeft: 8 }}>
               CLEARS IN {pred.clearanceTime}s
             </span>
@@ -162,24 +161,27 @@ export default function DepartureDecisionPanel({
             </span>
           </div>
 
-          {backendReason && (
+          {hasLivePrediction && backendReason && (
             <p className="rec-reason font-mono">{backendReason}</p>
+          )}
+          {!hasLivePrediction && (
+            <p className="rec-reason font-mono">ML backend not connected. Live recommendation metrics are unavailable.</p>
           )}
 
           {/* Metrics grid — only show fields the backend actually returned */}
           <div className="rec-metrics-row">
 
-            <div className={`rec-metric font-mono ${conflictPct !== '—' && pred.conflictProbability > 0.3 ? 'amber' : 'green'}`}>
+            <div className={`rec-metric font-mono ${hasLivePrediction && pred.conflictProbability > 0.3 ? 'amber' : 'muted'}`}>
               <span>CONFLICT PROB</span>
               <span>{conflictPct}</span>
             </div>
 
-            <div className={`rec-metric font-mono ${confidencePct !== '—' ? 'green' : 'muted'}`}>
+            <div className={`rec-metric font-mono ${hasLivePrediction ? 'green' : 'muted'}`}>
               <span>CONFIDENCE</span>
               <span>{confidencePct}</span>
             </div>
 
-            <div className={`rec-metric font-mono ${timeSaved !== '—' ? 'green' : 'muted'}`}>
+            <div className={`rec-metric font-mono ${hasLivePrediction ? 'green' : 'muted'}`}>
               <span>TIME SAVED</span>
               <span>{timeSaved}</span>
             </div>
@@ -219,6 +221,92 @@ export default function DepartureDecisionPanel({
               <span className="btn-icon">⏸</span>
               HOLD
             </button>
+
+          </div>
+          <div style={{
+            marginTop: 12,
+            padding: '12px 16px',
+            background: '#f1f5f9',
+            borderRadius: 8,
+            border: '1px solid #e2e8f0'
+          }}>
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              marginBottom: 8
+            }}>
+              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: '#475569' }}>
+                ML MODEL HEALTH
+              </span>
+              <span
+                style={{
+                  fontSize: 9,
+                  fontWeight: 700,
+                  letterSpacing: '0.1em',
+                  padding: '2px 8px',
+                  borderRadius: 3,
+                  border: '1px solid',
+                  ...(hasLivePrediction
+                    ? { background: '#f0fdf4', color: '#15803d', borderColor: '#86efac' }
+                    : { background: '#f8fafc', color: '#64748b', borderColor: '#cbd5e1' })
+                }}
+              >
+                {hasLivePrediction ? '● ML LIVE' : '○ ML NOT CONNECTED'}
+              </span>
+            </div>
+
+            {/* Reason + Confidence + Time Saved + Predicted Delay */}
+            {hasLivePrediction && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                {/* Reason */}
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <span style={{ fontSize: 9, color: '#64748b', marginRight: 8 }}>
+                    REASON:
+                  </span>
+                  <span style={{ fontSize: 11, color: '#1e293b', fontWeight: 500 }}>
+                    {backendReason || 'No explanation provided'}
+                  </span>
+                </div>
+
+                {/* Confidence */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 9, color: '#64748b' }}>CONFIDENCE</span>
+                  <span style={{ fontSize: 12, color: '#1e293b', fontWeight: 600 }}>
+                    {confidencePct}
+                  </span>
+                </div>
+
+                {/* Time Saved */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 9, color: '#64748b' }}>TIME SAVED</span>
+                  <span style={{ fontSize: 12, color: '#1e293b', fontWeight: 600 }}>
+                    {timeSaved}
+                  </span>
+                </div>
+
+                {/* Predicted Delay */}
+                {predictedDelay && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={{ fontSize: 9, color: '#64748b' }}>PREDICTED DELAY</span>
+                    <span style={{ fontSize: 12, color: '#b91c1c', fontWeight: 600 }}>
+                      {predictedDelay}
+                    </span>
+                  </div>
+                )}
+
+                {/* Headway */}
+                {cabTrain.headwaySec != null && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <span style={{ fontSize: 9, color: '#64748b' }}>HEADWAY</span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: cabTrain.headwaySec > 480 ? '#15803d' : cabTrain.headwaySec > 288 ? '#92400e' : '#b91c1c' }}>
+                      {Math.round(cabTrain.headwaySec / 60)} MIN
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           {decision && (
             <div className={`decision-confirmed font-mono ${decision === 'PROCEED' ? 'green' : 'amber'}`}>

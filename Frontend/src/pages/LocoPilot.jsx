@@ -1,5 +1,5 @@
 import React from 'react';
-import { useLocoPilotState, useSimulationControls } from '../simulator/SimulationContext';
+import { useLocoPilotState, useSimulationControls, useMLStatus } from '../simulator/SimulationContext';
 import { SECTIONS } from '../simulator/networkModel';
 import LocoHeader from '../components/loco-pilot/LocoHeader';
 import CabDmiSpeedometer from '../components/loco-pilot/CabDmiSpeedometer';
@@ -151,17 +151,31 @@ export default function LocoPilot() {
     cabTrain, activeCabId, allTrains, trafficAhead,
     currentSignal, prediction, decision,
     locoPilotDecide, setActiveCab, departureEvaluation,
-    locoPilotData
+    locoPilotData, predictionsByTrain
   } = useLocoPilotState();
 
   const { status } = useSimulationControls();
+  const { isConnected: mlConnected, prediction: mlRawPrediction, alerts: mlAlerts } = useMLStatus();
+
+  // Determine ML availability for the currently selected train
+  const mlAvailabilityForCab = (() => {
+    if (!mlConnected) return 'ML_OFFLINE';
+    if (!activeCabId) return 'ML_OFFLINE';
+    const pred = predictionsByTrain?.[activeCabId];
+    if (pred?.isMLPrediction) return 'ML_AVAILABLE';
+    return 'ML_NOT_AVAILABLE_FOR_TRAIN';
+  })();
+
   const liveLocoPilotData = buildLocoPilotLiveData({
     cabTrain,
     prediction,
     currentSignal,
     trafficAhead
   });
-  const displayData = liveLocoPilotData || locoPilotData || {};
+  const displayData = {
+    ...(liveLocoPilotData || locoPilotData || {}),
+    predictionsByTrain: predictionsByTrain || {}
+  };
 
   // Build telemetry from live cab train
   const telemetry = cabTrain ? {
@@ -207,6 +221,7 @@ export default function LocoPilot() {
   // Show departure panel only when the cab train is dwelling and not arrived
   const showDeparturePanel = cabTrain && cabTrain.isDwelling && !cabTrain.hasReachedDestination;
 
+
   return (
     <div className="loco-pilot-page">
       <div className="loco-page-container">
@@ -220,6 +235,45 @@ export default function LocoPilot() {
           allTrains={allTrains}
           onSelectCab={setActiveCab}
         />
+
+        {/* ML Status Bar — driven by useMLStatus, no direct API calls */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          gap: 12, margin: '12px 0 18px', padding: '10px 16px',
+          border: '1px solid #e2e8f0', borderRadius: 12, background: '#f8fafc'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {/* Backend connectivity */}
+            <span className="font-mono" style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
+              padding: '3px 10px', borderRadius: 4, border: '1px solid',
+              ...(mlConnected
+                ? { background: '#f0fdf4', color: '#15803d', borderColor: '#86efac' }
+                : { background: '#f8fafc', color: '#94a3b8', borderColor: '#e2e8f0' })
+            }}>
+              {mlConnected ? '● TRAINSENSE ML CONNECTED' : '○ ML BACKEND OFFLINE'}
+            </span>
+            {/* Per-train ML availability */}
+            {mlConnected && (
+              <span className="font-mono" style={{
+                fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
+                padding: '3px 10px', borderRadius: 4, border: '1px solid',
+                ...(mlAvailabilityForCab === 'ML_AVAILABLE'
+                  ? { background: '#f0fdf4', color: '#15803d', borderColor: '#86efac' }
+                  : { background: '#fffbeb', color: '#92400e', borderColor: '#fde68a' })
+              }}>
+                {mlAvailabilityForCab === 'ML_AVAILABLE'
+                  ? `● ${activeCabId} — ML AVAILABLE`
+                  : `○ ${activeCabId || 'TRAIN'} — ML NOT AVAILABLE FOR THIS TRAIN`}
+              </span>
+            )}
+          </div>
+          {mlConnected && mlAlerts?.length > 0 && (
+            <span className="font-mono" style={{ fontSize: 9, color: '#92400e' }}>
+              {mlAlerts.filter(a => !a.acknowledged).length} ML ALERT{mlAlerts.filter(a => !a.acknowledged).length !== 1 ? 'S' : ''} ACTIVE
+            </span>
+          )}
+        </div>
 
         {/* 2. Departure Decision + AI Prediction (only when dwelling) */}
         {showDeparturePanel && (

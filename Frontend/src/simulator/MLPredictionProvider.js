@@ -18,6 +18,7 @@
 
 import {
   getPrediction,
+  getAllPredictions,
   getAllTrains,
   getAlerts,
   startBackendSimulation,
@@ -54,6 +55,10 @@ export class MLPredictionProvider {
     // Latest normalised prediction from ML backend (or null if unavailable)
     this.latestPrediction   = null;
 
+    // Latest normalised predictions for all active trains
+    this.latestPredictions   = [];
+    this.predictionsByTrain   = {};
+
     // Latest alerts from ML backend
     this.latestAlerts       = [];
 
@@ -64,8 +69,10 @@ export class MLPredictionProvider {
     this.isConnected        = false;
     this.lastConnectAttempt = 0;
 
-    // Polling timer
-    this._pollTimer         = null;
+    // Polling timers
+    this._pollTimer           = null;
+    this._allPredictionsTimer = null;
+    this._alertTimer          = null;   // guarded — never stacked
 
     // In-flight request controller (for stale cancellation)
     this._currentAbort      = null;
@@ -173,8 +180,14 @@ export class MLPredictionProvider {
   subscribe(listener) {
     this._listeners.add(listener);
     // Immediately emit current state
-    if (this.latestPrediction || this.latestAlerts.length) {
-      listener({ prediction: this.latestPrediction, alerts: this.latestAlerts, isConnected: this.isConnected });
+    if (this.latestPrediction || this.latestAlerts.length || this.latestPredictions.length) {
+      listener({
+        prediction: this.latestPrediction,
+        predictions: this.latestPredictions,
+        predictionsByTrain: this.predictionsByTrain,
+        alerts: this.latestAlerts,
+        isConnected: this.isConnected
+      });
     }
     return () => this._listeners.delete(listener);
   }
@@ -196,6 +209,7 @@ export class MLPredictionProvider {
    */
   stop() {
     this._stopPoll();
+    if (this._allPredictionsTimer) { clearInterval(this._allPredictionsTimer); this._allPredictionsTimer = null; }
     this._abortCurrent();
   }
 
@@ -212,15 +226,73 @@ export class MLPredictionProvider {
 
   _beginPoll() {
     this._stopPoll();
+    this._fetchAllPredictions('poll');
     // Fetch immediately, then set recurring timer
     this._fetchPrediction('poll');
     this._pollTimer = setInterval(() => {
       this._fetchPrediction('poll');
     }, POLL_INTERVAL_MS);
+    if (!this._allPredictionsTimer) {
+      this._allPredictionsTimer = setInterval(() => {
+        this._fetchAllPredictions('poll');
+      }, 5000);
+    }
   }
 
   _stopPoll() {
     if (this._pollTimer) { clearInterval(this._pollTimer); this._pollTimer = null; }
+    if (this._allPredictionsTimer) { clearInterval(this._allPredictionsTimer); this._allPredictionsTimer = null; }
+  }
+
+  async _fetchAllPredictions(reason = 'poll') {
+    if (!this.isConnected) return;
+    try {
+      const [predRes, trainsRes] = await Promise.allSettled([
+        getAllPredictions(),
+        getAllTrains()
+      ]);
+
+      const predictions = predRes.status === 'fulfilled' && Array.isArray(predRes.value)
+        ? predRes.value
+        : [];
+      const trains = trainsRes.status === 'fulfilled' && Array.isArray(trainsRes.value)
+        ? trainsRes.value
+        : [];
+
+      // Merge both lists into a per-train map (predictions take priority over raw train telemetry)
+      const mergedByTrain = {};
+      const upsert = (pred) => {
+        if (!pred?.trainId) return;
+        mergedByTrain[pred.trainId] = {
+          ...(mergedByTrain[pred.trainId] || {}),
+          ...pred,
+          _raw: {
+            ...((mergedByTrain[pred.trainId] || {})._raw || {}),
+            ...(pred._raw || {})
+          }
+        };
+      };
+
+      trains.forEach(upsert);
+      predictions.forEach(upsert);  // predictions override train telemetry
+
+      this.latestPredictions  = Object.values(mergedByTrain);
+      this.predictionsByTrain = mergedByTrain;
+
+      // Update latestPrediction only if a fresher full-prediction exists for the cab train
+      if (this.activeCabTrainId && mergedByTrain[this.activeCabTrainId]) {
+        const candidate = mergedByTrain[this.activeCabTrainId];
+        // Only replace latestPrediction if it has real ML fields (not just telemetry echo)
+        if (candidate.conflictProbability != null || candidate.recommendedAction) {
+          this.latestPrediction = candidate;
+        }
+      }
+
+      this._notifyListeners();
+    } catch (err) {
+      // Non-critical — silently log
+      console.info(`[MLPredictionProvider] All-predictions fetch unavailable (${reason}):`, err.message);
+    }
   }
 
   _abortCurrent() {
@@ -276,6 +348,8 @@ export class MLPredictionProvider {
   _notifyListeners() {
     const payload = {
       prediction:  this.latestPrediction,
+      predictions: this.latestPredictions,
+      predictionsByTrain: this.predictionsByTrain,
       alerts:      this.latestAlerts,
       isConnected: this.isConnected
     };
@@ -303,8 +377,10 @@ export class MLPredictionProvider {
       // Initial alert fetch
       this._fetchAlerts();
 
-      // Refresh alerts every 5 seconds independently
-      setInterval(() => { if (this.isConnected) this._fetchAlerts(); }, 5000);
+      // Alert polling — GUARDED: never create more than one interval across reconnects
+      if (!this._alertTimer) {
+        this._alertTimer = setInterval(() => { if (this.isConnected) this._fetchAlerts(); }, 5000);
+      }
 
       console.info('[MLPredictionProvider] ✅ Connected to ML backend:', import.meta.env.VITE_ML_API_URL);
     } catch (err) {

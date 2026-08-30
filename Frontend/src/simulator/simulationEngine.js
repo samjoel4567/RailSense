@@ -22,6 +22,7 @@ import { recalculateAllETAs } from './etaEngine';
 import { computeSignals, getEffectiveSpeedLimit } from './signalEngine';
 import { predict as predictionPredict } from './predictionEngine';
 import { mlPredictionProvider, ML_TRIGGER_EVENTS } from './MLPredictionProvider';
+import { intrusionEngine } from '../intrusion/intrusionEngine';
 
 // ─────────────────────────────────────────────────────────
 // Constants
@@ -48,13 +49,14 @@ export class SimulationEngine {
     // Scenario state
     this.activeScenario  = null;
     this.baselineSnapshot = null;
-    this.activeCabTrainId = 'LOCAL_101';
+    this.activeCabTrainId = null;
 
     // Loco Pilot decision state per train: 'IDLE' | 'WAITING' | 'HOLD' | 'PROCEED'
     this.locoPilotDecisions = {};
 
     // ── Initialize 30-train network ──────────────────────
     this._initNetwork();
+    this._setDefaultActiveCab();
 
     // ── Event log (generated from real state changes) ────
     this.eventLog = [];
@@ -63,7 +65,16 @@ export class SimulationEngine {
 
     this.state = this.buildState();
 
-    // Start ML polling for the default cab train (LOCAL_101)
+    // ── Intrusion Engine — inject shared clock + event logger ──
+    // Uses the existing simulation clock; no new timer created.
+    intrusionEngine.setSimClock(() => this.clock.getTimeString());
+    intrusionEngine.setEventLogger((type, trainId, message, delta) =>
+      this._addEvent(type, trainId, message, delta)
+    );
+    // Subscribe so that any intrusion change triggers a state notification
+    intrusionEngine.subscribe(() => this.notify());
+
+    // Start ML polling for the default cab train
     // MLPredictionProvider checks connectivity first, then begins polling
     setTimeout(() => mlPredictionProvider.startPolling(this.activeCabTrainId), 500);
   }
@@ -89,9 +100,6 @@ export class SimulationEngine {
 
     // Compute positionKm for all in-transit trains
     this.trains.forEach(t => { this._updatePositionKm(t); });
-
-    // Loco Pilot: LOCAL_101 starts in WAITING state
-    this.locoPilotDecisions['LOCAL_101'] = 'WAITING';
 
     this.stationStates = buildInitialStationStates(this.trains);
     this.sectionStates = buildInitialSectionStates(this.trains);
@@ -201,7 +209,9 @@ export class SimulationEngine {
       cabTrain,
       cabPrediction,
       locoPilotDecisions: { ...this.locoPilotDecisions },
-      departureEvaluation: this._buildDepartureEval()
+      departureEvaluation: this._buildDepartureEval(),
+      // Intrusion state — read from singleton engine each tick
+      intrusionState: intrusionEngine.getState()
     });
   }
 
@@ -232,14 +242,31 @@ export class SimulationEngine {
     };
   }
 
-  _buildDepartureEval() {
-    const l101  = this.trains.find(t => t.id === 'LOCAL_101');
+  _getDefaultLocalCabId() {
+    const activeLocal = this.trains.find(t => t.type === 'LOCAL' && !t.hasReachedDestination);
+    if (activeLocal?.id) return activeLocal.id;
+
+    const anyLocal = this.trains.find(t => t.type === 'LOCAL');
+    if (anyLocal?.id) return anyLocal.id;
+
+    return this.trains[0]?.id || null;
+  }
+
+  _setDefaultActiveCab() {
+    const defaultCabId = this._getDefaultLocalCabId();
+    this.activeCabTrainId = defaultCabId;
+    this.locoPilotDecisions = defaultCabId ? { [defaultCabId]: 'WAITING' } : {};
+  }
+
+  _buildDepartureEval(trainId = null) {
+    const targetTrainId = trainId || this.activeCabTrainId || this._getDefaultLocalCabId();
+    const cabTrain = targetTrainId ? this.trains.find(t => t.id === targetTrainId) : null;
     const e201  = this.trains.find(t => t.id === 'EXPRESS_201');
     return evaluateDeparture({
       phase: this.currentPhase,
-      trains: [l101, e201].filter(Boolean),
+      trains: [cabTrain, e201].filter(Boolean),
       hazardActive: this.hazardActive
-    }, 'LOCAL_101');
+    }, targetTrainId);
   }
 
   _getSimTimeSec() {
@@ -564,11 +591,15 @@ export class SimulationEngine {
     this.locoPilotDecisions[trainId] = decision;
 
     if (decision === 'PROCEED') {
-      // If dwelling, initiate departure
+      // If dwelling, depart immediately so the selected train starts moving now.
       if (train.isDwelling && !train.hasReachedDestination) {
         train.delay   = 0;
-        train.dwellTime = train.dwellTarget; // trigger depart on next tick
-        train.status  = 'DEPARTING';
+        train.dwellTime = train.dwellTarget;
+        this._departTrain(train);
+      } else if (train.currentSection && train.speed <= 0 && !train.hasReachedDestination) {
+        // If already in transit but stopped, release back to normal running.
+        train.targetSpeed = train.normalSpeed || TRAIN_TYPE_CONFIG[train.type].normalSpeed;
+        train.status = 'IN TRANSIT';
       }
       this._addEvent('DECISION', trainId, `${trainId} — LOCO PILOT DECISION: PROCEED`);
       this._addEvent('DISPATCH', trainId, `${trainId} DEPARTURE AUTHORIZED`);
@@ -691,34 +722,37 @@ export class SimulationEngine {
   // ─────────────────────────────────────────────────────────
   // Backward-compat Loco Pilot workflow
   // ─────────────────────────────────────────────────────────
-  requestDeparture(trainId = 'LOCAL_101') {
-    const evalResult = this._buildDepartureEval();
+  requestDeparture(trainId) {
+    const targetTrainId = trainId || this.activeCabTrainId || this._getDefaultLocalCabId();
+    const evalResult = this._buildDepartureEval(targetTrainId);
     if (evalResult.authorized) {
-      const t = this.trains.find(x => x.id === trainId);
+      const t = this.trains.find(x => x.id === targetTrainId);
       if (t) t.status = 'AUTHORIZED';
-      this._addEvent('DISPATCH', trainId, `${trainId} DEPARTURE REQUEST AUTHORIZED`);
+      this._addEvent('DISPATCH', targetTrainId, `${targetTrainId} DEPARTURE REQUEST AUTHORIZED`);
     } else {
-      const t = this.trains.find(x => x.id === trainId);
+      const t = this.trains.find(x => x.id === targetTrainId);
       if (t) t.status = 'HELD BY INTERLOCKING';
-      this._addEvent('WARNING', trainId, `${trainId} HELD — ${evalResult.reason}`);
+      this._addEvent('WARNING', targetTrainId, `${targetTrainId} HELD — ${evalResult.reason}`);
     }
     this.notify();
     return evalResult;
   }
 
-  keepWaiting(trainId = 'LOCAL_101') {
-    this.locoPilotDecide(trainId, 'HOLD');
+  keepWaiting(trainId) {
+    const targetTrainId = trainId || this.activeCabTrainId || this._getDefaultLocalCabId();
+    this.locoPilotDecide(targetTrainId, 'HOLD');
   }
 
-  confirmDepart(trainId = 'LOCAL_101') {
+  confirmDepart(trainId) {
+    const targetTrainId = trainId || this.activeCabTrainId || this._getDefaultLocalCabId();
     if (this.currentPhase === 5 && this.hazardActive) {
-      this._addEvent('CRITICAL', trainId, 'DEPARTURE ABORTED — SIL-4 SAFETY OVERRIDE ACTIVE');
-      const t = this.trains.find(x => x.id === trainId);
+      this._addEvent('CRITICAL', targetTrainId, 'DEPARTURE ABORTED — SIL-4 SAFETY OVERRIDE ACTIVE');
+      const t = this.trains.find(x => x.id === targetTrainId);
       if (t) t.status = 'HELD BY INTERLOCKING';
       this.notify();
       return false;
     }
-    this.locoPilotDecide(trainId, 'PROCEED');
+    this.locoPilotDecide(targetTrainId, 'PROCEED');
     return true;
   }
 
@@ -758,11 +792,10 @@ export class SimulationEngine {
     this.hazardSectionId  = null;
     this.activeScenario   = null;
     this.baselineSnapshot = null;
-    this.activeCabTrainId = 'LOCAL_101';
-    this.locoPilotDecisions = { 'LOCAL_101': 'WAITING' };
     this.loggedMilestones.clear();
     this.clock.reset();
     this._initNetwork();
+    this._setDefaultActiveCab();
     this.eventLog = [];
     this._addEvent('SYSTEM', null, 'SIMULATION RESET — Restored to deterministic initial state (Phase 1)');
     this.notify();

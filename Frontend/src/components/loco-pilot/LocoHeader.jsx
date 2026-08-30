@@ -8,8 +8,6 @@ const TYPE_COLORS = {
   LOCAL:     { bg: '#fffbeb', border: '#fde68a', text: '#92400e' }
 };
 
-const TRAIN_OPTIONS_MAX = 8; // max trains shown in dropdown
-
 export default function LocoHeader({ data, simTime, activeCabId, cabTrain, allTrains = [], onSelectCab }) {
   const colors = cabTrain ? TYPE_COLORS[cabTrain.type] || TYPE_COLORS.LOCAL : TYPE_COLORS.LOCAL;
   const delayMin = Math.round(cabTrain?.delay || 0);
@@ -19,11 +17,16 @@ export default function LocoHeader({ data, simTime, activeCabId, cabTrain, allTr
   const cabId = data?.cabId || activeCabId;
   const driverName = data?.driverName || 'ASSIGNED CREW';
 
-  // Trains available for cab selection (show first 8 per type priority)
+  // Trains available for cab selection.
+  // Locopilot is focused on local services, so show all local cabs first.
   const cabOptions = allTrains
-    .filter(t => !t.hasReachedDestination)
-    .sort((a, b) => a.priority - b.priority)
-    .slice(0, TRAIN_OPTIONS_MAX);
+    .filter(t => !t.hasReachedDestination && t.type === 'LOCAL')
+    .sort((a, b) => {
+      const idA = Number(String(a.id).split('_')[1] || 0);
+      const idB = Number(String(b.id).split('_')[1] || 0);
+      return idA - idB;
+    });
+  const predictionsByTrain = data?.predictionsByTrain || {};
 
   return (
     <div className="loco-header-card">
@@ -82,7 +85,7 @@ export default function LocoHeader({ data, simTime, activeCabId, cabTrain, allTr
             >
               {cabOptions.map(t => (
                 <option key={t.id} value={t.id}>
-                  {t.id} — {t.type} ({t.status || 'TRANSIT'})
+                  {t.id} — {t.type} ({t.status || 'TRANSIT'}) {predictionsByTrain[t.id]?.recommendedAction ? `ML ${predictionsByTrain[t.id].recommendedAction}` : 'ML N/A'}
                 </option>
               ))}
             </select>

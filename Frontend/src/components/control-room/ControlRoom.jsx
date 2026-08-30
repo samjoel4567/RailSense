@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useNetworkState, useNetworkMetrics, useSimulationControls, useMLStatus } from '../../simulator/SimulationContext';
+import { useNetworkState, useNetworkMetrics, useSimulationControls, useMLStatus, useIntrusionState } from '../../simulator/SimulationContext';
 import { STATION_CHAIN, STATIONS, SECTIONS } from '../../simulator/networkModel';
 import { signalAspectColor } from '../../simulator/signalEngine';
 import ControlRoomHeader from './ControlRoomHeader';
@@ -204,6 +204,305 @@ function EventLogStrip({ eventLog }) {
   );
 }
 
+// ─── Intrusion Alert Panel ──────────────────────────────────────────────────
+const SEVERITY_CONFIG = {
+  CRITICAL: {
+    bg: 'linear-gradient(135deg, #1a0000 0%, #2d0000 100%)',
+    card: '#1c0000', cardBorder: '#7f1d1d',
+    accent: '#ef4444', accentDim: '#b91c1c',
+    badge: { bg: '#ef4444', text: '#ffffff' },
+    pulse: '#ef4444', glow: '0 0 20px rgba(239,68,68,0.4), 0 0 40px rgba(239,68,68,0.15)',
+    label: 'CRITICAL HAZARD'
+  },
+  HIGH: {
+    bg: 'linear-gradient(135deg, #1a0a00 0%, #2d1500 100%)',
+    card: '#1c1000', cardBorder: '#9a3412',
+    accent: '#f97316', accentDim: '#c2410c',
+    badge: { bg: '#f97316', text: '#ffffff' },
+    pulse: '#f97316', glow: '0 0 20px rgba(249,115,22,0.35)',
+    label: 'HIGH SEVERITY'
+  },
+  MEDIUM: {
+    bg: 'linear-gradient(135deg, #1a1400 0%, #2d2200 100%)',
+    card: '#1c1a00', cardBorder: '#a16207',
+    accent: '#f59e0b', accentDim: '#b45309',
+    badge: { bg: '#f59e0b', text: '#000000' },
+    pulse: '#f59e0b', glow: '0 0 16px rgba(245,158,11,0.3)',
+    label: 'MEDIUM SEVERITY'
+  },
+  LOW: {
+    bg: 'linear-gradient(135deg, #001a0a 0%, #002d12 100%)',
+    card: '#001c0a', cardBorder: '#166534',
+    accent: '#10b981', accentDim: '#059669',
+    badge: { bg: '#10b981', text: '#ffffff' },
+    pulse: '#10b981', glow: '0 0 16px rgba(16,185,129,0.3)',
+    label: 'LOW SEVERITY'
+  }
+};
+
+const INTRUSION_ICON = {
+  PERSON_ON_TRACK:   '🚨',
+  OBJECT_ON_TRACK:   '⚠️',
+  VEHICLE_INTRUSION: '🚗'
+};
+
+// Keyframe animation injected once
+const INTRUSION_STYLE_ID = 'intrusion-keyframes';
+if (!document.getElementById(INTRUSION_STYLE_ID)) {
+  const s = document.createElement('style');
+  s.id = INTRUSION_STYLE_ID;
+  s.textContent = `
+    @keyframes intr-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(1.35)} }
+    @keyframes intr-bar    { 0%{opacity:.5} 50%{opacity:1} 100%{opacity:.5} }
+    @keyframes intr-slide  { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes intr-flash  { 0%,100%{background:rgba(239,68,68,0)} 50%{background:rgba(239,68,68,0.06)} }
+  `;
+  document.head.appendChild(s);
+}
+
+function IntrusionPanel() {
+  const { active, history, hasActive, criticalCount, controls } = useIntrusionState();
+  const topSev  = active.find(i => i.severity === 'CRITICAL') ? 'CRITICAL'
+    : active.find(i => i.severity === 'HIGH') ? 'HIGH'
+    : active.find(i => i.severity === 'MEDIUM') ? 'MEDIUM'
+    : active.length ? 'LOW' : null;
+  const cfg = topSev ? SEVERITY_CONFIG[topSev] : null;
+
+  // ── CLEARED / IDLE state ────────────────────────────────
+  if (!hasActive) {
+    return (
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '10px 16px', marginBottom: 12,
+        background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 10
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 14 }}>✅</span>
+          <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'monospace',
+            letterSpacing: '0.1em', color: '#15803d' }}>
+            TRACK CLEAR — NO ACTIVE INTRUSIONS
+          </span>
+          {history.length > 0 && (
+            <span style={{ fontSize: 9, color: '#6b7280', fontFamily: 'monospace' }}>
+              · {history.length} in history
+            </span>
+          )}
+        </div>
+        <button
+          onClick={() => controls.triggerDemoIntrusion()}
+          style={{
+            fontSize: 9, fontWeight: 700, padding: '5px 12px', borderRadius: 5,
+            border: '1px solid #fca5a5', background: '#fef2f2', color: '#b91c1c',
+            cursor: 'pointer', fontFamily: 'monospace', letterSpacing: '0.08em'
+          }}
+        >
+          ⚡ SIMULATE INTRUSION
+        </button>
+      </div>
+    );
+  }
+
+  // ── ACTIVE INTRUSION STATE ──────────────────────────────
+  return (
+    <div style={{
+      borderRadius: 12, marginBottom: 14, overflow: 'hidden',
+      boxShadow: cfg.glow, animation: 'intr-flash 2s ease-in-out infinite',
+      border: `1px solid ${cfg.accentDim}`
+    }}>
+      {/* ── Banner header ── */}
+      <div style={{
+        background: cfg.bg, padding: '12px 18px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* Pulsing alarm dot */}
+          <span style={{
+            width: 12, height: 12, borderRadius: '50%',
+            background: cfg.accent, display: 'inline-block', flexShrink: 0,
+            animation: 'intr-pulse 1s ease-in-out infinite',
+            boxShadow: `0 0 8px ${cfg.accent}`
+          }} />
+          <span style={{
+            fontSize: 12, fontWeight: 900, letterSpacing: '0.15em',
+            color: cfg.accent, fontFamily: 'monospace'
+          }}>
+            {active.length > 1 ? `⚠ ${active.length} ACTIVE INTRUSIONS` : '⚠ INTRUSION DETECTED'}
+          </span>
+          <span style={{
+            fontSize: 9, fontWeight: 700, padding: '2px 9px', borderRadius: 3,
+            background: cfg.badge.bg, color: cfg.badge.text,
+            fontFamily: 'monospace', letterSpacing: '0.1em'
+          }}>
+            {cfg.label}
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <button
+            onClick={() => active.forEach(i => controls.clearIntrusion(i.id))}
+            style={{
+              fontSize: 9, fontWeight: 700, padding: '5px 12px', borderRadius: 5,
+              border: '1px solid #4ade80', background: 'rgba(74,222,128,0.1)', color: '#4ade80',
+              cursor: 'pointer', fontFamily: 'monospace', letterSpacing: '0.08em'
+            }}
+          >
+            ✓ CLEAR ALL
+          </button>
+        </div>
+      </div>
+
+      {/* ── Active intrusion cards ── */}
+      <div style={{ background: '#0f0f0f', padding: '10px 14px' }}>
+        {active.map((intr, idx) => {
+          const c = SEVERITY_CONFIG[intr.severity] || SEVERITY_CONFIG.MEDIUM;
+          const icon = INTRUSION_ICON[intr.type] || '⚠️';
+          return (
+            <div
+              key={intr.id}
+              style={{
+                background: c.card, border: `1px solid ${c.cardBorder}`,
+                borderLeft: `4px solid ${c.accent}`,
+                borderRadius: 8, padding: '14px 16px', marginBottom: idx < active.length-1 ? 8 : 0,
+                animation: 'intr-slide 0.3s ease-out',
+                display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, alignItems: 'start'
+              }}
+            >
+              <div>
+                {/* Row 1: ID + type + badges */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 18 }}>{icon}</span>
+                  <span style={{
+                    fontSize: 13, fontWeight: 900, color: c.accent,
+                    fontFamily: 'monospace', letterSpacing: '0.08em'
+                  }}>
+                    {intr.id}
+                  </span>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, color: '#e2e8f0',
+                    fontFamily: 'monospace'
+                  }}>
+                    {intr.type.replace(/_/g, ' ')}
+                  </span>
+                  <span style={{
+                    fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 3,
+                    background: c.badge.bg, color: c.badge.text,
+                    fontFamily: 'monospace', letterSpacing: '0.1em'
+                  }}>
+                    {intr.severity}
+                  </span>
+                  <span style={{
+                    fontSize: 9, fontWeight: 600, padding: '2px 8px', borderRadius: 3,
+                    border: `1px solid ${intr.status === 'ACKNOWLEDGED' ? '#f59e0b' : c.cardBorder}`,
+                    color: intr.status === 'ACKNOWLEDGED' ? '#f59e0b' : '#94a3b8',
+                    fontFamily: 'monospace'
+                  }}>
+                    {intr.status}
+                  </span>
+                </div>
+
+                {/* Row 2: Location grid */}
+                <div style={{
+                  display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+                  gap: '6px 16px'
+                }}>
+                  {[
+                    { label: 'LOCATION', value: `KM ${intr.locationKm}` },
+                    { label: 'SECTION',  value: intr.sectionId.replace('SEC_','').replace('_',' → ') },
+                    { label: 'TRACK',    value: intr.track === 'DN_MAIN' ? 'DN MAIN ↓ Southbound' : 'UP MAIN ↑ Northbound' },
+                    { label: 'CONFIDENCE', value: `${Math.round(intr.confidence * 100)}%` },
+                    { label: 'EST. CLEARANCE', value: intr.estimatedClearanceTime ? `${intr.estimatedClearanceTime} min` : '—' },
+                    { label: 'DETECTED AT', value: intr.detectedAt },
+                    { label: 'SOURCE', value: intr.source }
+                  ].map(({ label, value }) => (
+                    <div key={label}>
+                      <div style={{ fontSize: 8, color: '#64748b', fontFamily: 'monospace',
+                        letterSpacing: '0.1em', marginBottom: 1 }}>{label}</div>
+                      <div style={{ fontSize: 10, color: '#e2e8f0', fontFamily: 'monospace',
+                        fontWeight: 600 }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Action buttons */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {intr.status === 'ACTIVE' && (
+                  <button
+                    onClick={() => controls.acknowledgeIntrusion(intr.id)}
+                    style={{
+                      fontSize: 9, fontWeight: 700, padding: '6px 12px', borderRadius: 5,
+                      border: '1px solid #f59e0b', background: 'rgba(245,158,11,0.1)', color: '#f59e0b',
+                      cursor: 'pointer', fontFamily: 'monospace', whiteSpace: 'nowrap'
+                    }}
+                  >
+                    ACKNOWLEDGE
+                  </button>
+                )}
+                <button
+                  onClick={() => controls.clearIntrusion(intr.id)}
+                  style={{
+                    fontSize: 9, fontWeight: 700, padding: '6px 12px', borderRadius: 5,
+                    border: '1px solid #4ade80', background: 'rgba(74,222,128,0.1)', color: '#4ade80',
+                    cursor: 'pointer', fontFamily: 'monospace', whiteSpace: 'nowrap'
+                  }}
+                >
+                  CLEAR
+                </button>
+                <button
+                  onClick={() => controls.markFalsePositive(intr.id)}
+                  style={{
+                    fontSize: 9, fontWeight: 700, padding: '6px 12px', borderRadius: 5,
+                    border: '1px solid #475569', background: 'rgba(71,85,105,0.15)', color: '#94a3b8',
+                    cursor: 'pointer', fontFamily: 'monospace', whiteSpace: 'nowrap'
+                  }}
+                >
+                  FALSE +VE
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── History strip ── */}
+      {history.length > 0 && (
+        <div style={{ background: '#0a0a0a', borderTop: '1px solid #1e1e1e', padding: '8px 14px' }}>
+          <details>
+            <summary style={{
+              fontSize: 9, fontFamily: 'monospace', color: '#475569',
+              cursor: 'pointer', letterSpacing: '0.1em', fontWeight: 600
+            }}>
+              HISTORY — {history.length} RESOLVED EVENT{history.length !== 1 ? 'S' : ''}
+            </summary>
+            <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {history.slice(-5).reverse().map(intr => (
+                <div key={intr.id + intr.clearedAt} style={{
+                  display: 'flex', gap: 12, padding: '4px 0',
+                  borderBottom: '1px solid #1a1a1a', fontSize: 9,
+                  fontFamily: 'monospace', color: '#475569', alignItems: 'center'
+                }}>
+                  <span style={{ color: '#6b7280', fontWeight: 700 }}>{intr.id}</span>
+                  <span>{intr.type.replace(/_/g, ' ')}</span>
+                  <span>KM {intr.locationKm}</span>
+                  <span>{intr.sectionId.replace('SEC_','').replace('_',' → ')}</span>
+                  <span style={{
+                    padding: '1px 6px', borderRadius: 3,
+                    background: intr.status === 'CLEARED' ? 'rgba(16,185,129,0.1)' : 'rgba(71,85,105,0.15)',
+                    color: intr.status === 'CLEARED' ? '#10b981' : '#64748b',
+                    border: `1px solid ${intr.status === 'CLEARED' ? '#10b981' : '#334155'}`
+                  }}>
+                    {intr.status}
+                  </span>
+                  {intr.clearedAt && <span style={{ color: '#374151' }}>@ {intr.clearedAt}</span>}
+                </div>
+              ))}
+            </div>
+          </details>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Control Room ───────────────────────────────────
 export default function ControlRoom() {
   const { allTrains, alerts, risk } = useNetworkState();
@@ -298,6 +597,9 @@ export default function ControlRoom() {
             ))}
           </div>
         )}
+
+        {/* Intrusion Alert Panel */}
+        <IntrusionPanel />
 
         {/* Network Metrics Strip */}
         <NetworkMetricsStrip metrics={metrics} conflicts={conflicts} />

@@ -3,6 +3,7 @@ import { simulationEngine } from './simulationEngine';
 import { mlPredictionProvider } from './MLPredictionProvider';
 import { STATIONS, STATION_CHAIN, SECTIONS } from './networkModel';
 import { acknowledgeAlert } from '../services/mlPredictionClient';
+import { mockIntrusionProvider } from '../intrusion/mockIntrusionProvider';
 
 const SimulationContext = createContext(null);
 
@@ -22,6 +23,8 @@ export function SimulationProvider({ children }) {
   const [mlStatus, setMlStatus] = useState({
     isConnected:  mlPredictionProvider.isConnected,
     prediction:   mlPredictionProvider.latestPrediction,
+    predictions:  mlPredictionProvider.latestPredictions || [],
+    predictionsByTrain: mlPredictionProvider.predictionsByTrain || {},
     alerts:       mlPredictionProvider.latestAlerts
   });
 
@@ -30,6 +33,8 @@ export function SimulationProvider({ children }) {
       setMlStatus({
         isConnected: payload.isConnected,
         prediction:  payload.prediction,
+        predictions: payload.predictions || [],
+        predictionsByTrain: payload.predictionsByTrain || {},
         alerts:      payload.alerts
       });
     });
@@ -39,6 +44,16 @@ export function SimulationProvider({ children }) {
   // ML controls
   const mlControls = useMemo(() => ({
     acknowledgeAlert: (alertId) => acknowledgeAlert(alertId)
+  }), []);
+
+  // Intrusion controls — all pages use these, never import provider directly
+  const intrusionControls = useMemo(() => ({
+    triggerIntrusion:      (config) => mockIntrusionProvider.triggerIntrusion(config),
+    triggerDemoIntrusion:  ()       => mockIntrusionProvider.triggerDemoIntrusion(),
+    clearIntrusion:        (id)     => mockIntrusionProvider.clearIntrusion(id),
+    acknowledgeIntrusion:  (id)     => mockIntrusionProvider.acknowledgeIntrusion(id),
+    markFalsePositive:     (id)     => mockIntrusionProvider.markFalsePositive(id),
+    getActiveIntrusions:   ()       => mockIntrusionProvider.getActiveIntrusions(),
   }), []);
 
   // ── Controls exposed to all pages ──────────────────────
@@ -70,7 +85,11 @@ export function SimulationProvider({ children }) {
   }), []);
 
   return (
-    <SimulationContext.Provider value={{ state: simState, status: simStatus, controls, mlStatus, mlControls }}>
+    <SimulationContext.Provider value={{
+      state: simState, status: simStatus, controls,
+      mlStatus, mlControls,
+      intrusionControls
+    }}>
       {children}
     </SimulationContext.Provider>
   );
@@ -158,7 +177,11 @@ export function useImpactAnalysis() {
 export function useLocoPilotState() {
   const { state, controls, mlStatus } = useSimulation();
   const allTrains = state.allTrains || [];
-  const activeCabId = state.activeCabTrainId || 'LOCAL_101';
+  const activeCabId =
+    state.activeCabTrainId ||
+    allTrains.find(t => t?.type === 'LOCAL' && !t?.hasReachedDestination)?.id ||
+    allTrains.find(t => t?.type === 'LOCAL')?.id ||
+    null;
   const cabTrain = allTrains.find(t => t.id === activeCabId) || null;
 
   // Traffic ahead: trains that are affecting this cab train
@@ -191,13 +214,23 @@ export function useLocoPilotState() {
     trafficAhead,
     currentSignal,
     signalStates,
+    predictionsByTrain: mlStatus?.predictionsByTrain || {},
 
     // Loco Pilot decision state
     decision: state.locoPilotDecisions?.[activeCabId] || 'IDLE',
-    prediction:
-      (mlStatus?.isConnected && mlStatus?.prediction?.trainId === activeCabId)
-        ? mlStatus.prediction
-        : null,
+    // Prediction priority:
+    //   1. mlStatus.latestPrediction — most recent focused-poll result for THIS train
+    //   2. mlStatus.predictionsByTrain[activeCabId] — from all-train sweep (may be stale)
+    //   3. state.cabPrediction — mock/deterministic fallback from predictionEngine
+    prediction: activeCabId
+      ? (() => {
+          const focused = mlStatus?.prediction;
+          if (focused?.trainId === activeCabId && focused?.isMLPrediction) return focused;
+          const byTrain = mlStatus?.predictionsByTrain?.[activeCabId];
+          if (byTrain?.isMLPrediction) return byTrain;
+          return state.cabPrediction || null;
+        })()
+      : (state.cabPrediction || null),
 
     // Controls
     locoPilotDecide: controls.locoPilotDecide,
@@ -306,5 +339,38 @@ export function useMLStatus() {
     prediction:       mlStatus?.prediction  ?? null,
     alerts:           mlStatus?.alerts      ?? [],
     acknowledgeAlert: mlControls?.acknowledgeAlert ?? (() => {})
+  };
+}
+
+// ── Intrusion State hook ─────────────────────────────────────────────────────
+/**
+ * useIntrusionState — consume intrusion data from any page/component.
+ *
+ * Returns:
+ *   active       {Object[]} — currently active intrusions
+ *   history      {Object[]} — cleared / false-positive intrusions
+ *   hasActive    {boolean}  — convenience flag
+ *   criticalCount {number}  — number of CRITICAL severity active intrusions
+ *   controls     {Object}   — triggerIntrusion, triggerDemoIntrusion,
+ *                             clearIntrusion, acknowledgeIntrusion,
+ *                             markFalsePositive
+ *
+ * Usage:
+ *   const { active, hasActive, controls } = useIntrusionState();
+ *   controls.triggerDemoIntrusion();
+ *   controls.clearIntrusion('INTR-001');
+ */
+export function useIntrusionState() {
+  const { state, intrusionControls } = useSimulation();
+  const intrusionState = state.intrusionState || { active: [], history: [] };
+
+  return {
+    active:        intrusionState.active  || [],
+    history:       intrusionState.history || [],
+    hasActive:     (intrusionState.active || []).length > 0,
+    criticalCount: (intrusionState.active || []).filter(
+      i => i.severity === 'CRITICAL'
+    ).length,
+    controls:      intrusionControls || {}
   };
 }

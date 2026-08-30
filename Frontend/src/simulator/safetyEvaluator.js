@@ -10,7 +10,7 @@
  * @param {string} trainId ID of the train requesting departure (e.g. 'LOCAL_101')
  * @returns {Object} Structured evaluation result
  */
-export function evaluateDeparture(simContext, trainId = 'LOCAL_101') {
+export function evaluateDeparture(simContext, trainId = null) {
   const { phase, trains = [], hazardActive = false } = simContext;
 
   const localTrain = trains.find((t) => t.id === trainId) || {

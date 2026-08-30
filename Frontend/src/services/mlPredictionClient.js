@@ -115,19 +115,80 @@ function normalizeAlert(raw) {
   };
 }
 
+function normalizePredictionLike(raw, fallbackTrainId = null) {
+  if (!raw) return null;
+  if (raw.train_id || raw.recommended_action || raw.recommendation || raw.prediction_confidence || raw.confidence) {
+    return normalizePrediction({
+      ...raw,
+      train_id: raw.train_id || frontendIdToBackendId(fallbackTrainId)
+    });
+  }
+
+  const directRecommendation =
+    raw.recommendedAction ||
+    raw.recommendation ||
+    raw.recommended_action ||
+    raw.decision ||
+    raw.action ||
+    null;
+
+  const departure = raw.departureEvaluation || raw.departure_evaluation || null;
+  const departureRecommendation =
+    departure?.recommendation ||
+    departure?.recommendedAction ||
+    departure?.decision ||
+    null;
+
+  const recommendation = directRecommendation || departureRecommendation;
+  if (!recommendation) return null;
+
+  return {
+    trainId: fallbackTrainId,
+    backendTrainId: raw.train_id || fallbackTrainId || null,
+    isMLPrediction: true,
+    recommendedAction: String(recommendation).toUpperCase(),
+    conflictProbability: raw.conflictProbability ?? departure?.riskScore ?? null,
+    hasConflict: raw.hasConflict ?? false,
+    confidence: raw.confidence ?? null,
+    predictedDelay: raw.predictedDelay ?? departure?.predictedDelay ?? null,
+    estimatedTimeSaved: raw.estimatedTimeSaved ?? departure?.estimatedTimeSaved ?? null,
+    eta: raw.eta ?? departure?.eta ?? null,
+    clearanceTime: raw.clearanceTime ?? departure?.estimatedClearanceTime ?? null,
+    affectedTrains: raw.affectedTrains ?? null,
+    reason: raw.reason ?? departure?.reason ?? raw.message ?? null,
+    signalAspect: raw.signalAspect ?? departure?.signalAspect ?? null,
+    speed: raw.speed ?? null,
+    delay: raw.delay ?? null,
+    backendStatus: raw.status || null,
+    isLive: raw.is_live ?? true,
+    dataSource: raw.data_source || raw.dataSource || 'dashboard',
+    lastUpdated: raw.last_updated || raw.lastUpdated || null,
+    _raw: raw
+  };
+}
+
 // ── HTTP helpers ──────────────────────────────────────────────────────────────
 async function apiFetch(path, options = {}) {
   const url = `${API_V1}${path}`;
+  const method = options.method || 'GET';
   const res  = await fetch(url, {
     headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
     ...options
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(`ML API ${options.method || 'GET'} ${path} → ${res.status}: ${text}`);
+    console.error(`[ML API] ${method} ${path} failed → ${res.status}`, text);
+    throw new Error(`ML API ${method} ${path} → ${res.status}: ${text}`);
   }
 
-  return res.json();
+  const json = await res.json();
+  const summary = Array.isArray(json)
+    ? `array(${json.length})`
+    : json && typeof json === 'object'
+      ? `keys(${Object.keys(json).slice(0, 8).join(', ')})`
+      : String(json);
+  console.log(`[ML API] ${method} ${path} OK → ${summary}`);
+  return json;
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -137,9 +198,7 @@ async function apiFetch(path, options = {}) {
  * @returns {Promise<Object>} raw health object
  */
 export async function checkHealth(signal) {
-  const res= apiFetch('/health', { signal });
-  console.log(res);
-  return res;
+  return apiFetch('/health', { signal });
 }
 
 /**
@@ -150,9 +209,38 @@ export async function checkHealth(signal) {
  */
 export async function getPrediction(frontendTrainId, signal) {
   const backendId = frontendIdToBackendId(frontendTrainId);
-  const raw = await apiFetch(`/predictions/${backendId}`, { signal });
-  console.log('prediction',raw);
-  return normalizePrediction(raw);
+  try {
+    const raw = await apiFetch(`/predictions/${backendId}`, { signal });
+    return normalizePrediction(raw);
+  } catch (err) {
+    const isMissingPrediction =
+      err?.message?.includes('404') &&
+      err?.message?.includes('No active ML prediction found');
+
+    if (isMissingPrediction) {
+      console.info(`[ML API] GET /predictions/${backendId} returned no active prediction`);
+      try {
+        const dashboard = await getDashboard(signal);
+        const fromDashboard =
+          normalizePredictionLike(dashboard?.cabPrediction, frontendTrainId) ||
+          normalizePredictionLike(dashboard?.prediction, frontendTrainId) ||
+          normalizePredictionLike(dashboard?.activePrediction, frontendTrainId) ||
+          normalizePredictionLike(dashboard?.departureEvaluation, frontendTrainId) ||
+          normalizePredictionLike(dashboard, frontendTrainId);
+
+        if (fromDashboard) {
+          console.info(`[ML API] dashboard fallback provided prediction for ${backendId}`);
+          return fromDashboard;
+        }
+      } catch (dashboardErr) {
+        console.info(`[ML API] dashboard fallback unavailable for ${backendId}: ${dashboardErr.message}`);
+      }
+
+      return null;
+    }
+
+    throw err;
+  }
 }
 
 /**
