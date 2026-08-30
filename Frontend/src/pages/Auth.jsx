@@ -14,9 +14,10 @@ import './Auth.css';
 
 export default function Auth({ onNavigate, initialMode = 'login' }) {
   const [authMode, setAuthMode] = useState(initialMode); // 'login' | 'signup'
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   // If already authenticated, redirect to simulator
+
   useEffect(() => {
     if (isAuthenticated) {
       if (onNavigate) {

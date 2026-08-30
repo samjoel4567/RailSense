@@ -3,6 +3,7 @@ import CinematicIntro from './homepage/CinematicIntro';
 import SystemReveal from './homepage/SystemReveal';
 import CorridorVisual from './homepage/CorridorVisual';
 import PredictiveIntelligence from './homepage/PredictiveIntelligence';
+import AIModelPerformance from './homepage/AIModelPerformance/AIModelPerformance';
 import DelayPrevention from './homepage/DelayPrevention';
 import SafetyArchitecture from './homepage/SafetyArchitecture';
 import SystemLaunchpad from './homepage/SystemLaunchpad';
@@ -29,14 +30,18 @@ export default function Hero({ onNavigate }) {
       {/* 4. Predictive Safety Intelligence Progression Pipeline */}
       <PredictiveIntelligence />
 
-      {/* 5. Bottleneck & Delay Prevention Scenario Analysis */}
+      {/* 5. Real-Time AI Model Performance & Validation */}
+      <AIModelPerformance />
+
+      {/* 6. Bottleneck & Delay Prevention Scenario Analysis */}
       <DelayPrevention onNavigate={onNavigate} />
 
-      {/* 6. Fail-Safe Safety & Emergency Architecture */}
+      {/* 7. Fail-Safe Safety & Emergency Architecture */}
       <SafetyArchitecture />
 
-      {/* 7. Final System Launchpad & Unified CTA */}
+      {/* 8. Final System Launchpad & Unified CTA */}
       <SystemLaunchpad onNavigate={onNavigate} />
     </div>
   );
 }
+

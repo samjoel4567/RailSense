@@ -348,3 +348,45 @@ export async function getDemoStatus() {
 export async function runDemoScenario() {
   return apiFetch('/demo/run-scenario', { method: 'POST' });
 }
+
+/**
+ * Resolve an evaluation artifact image path returned by the FastAPI backend.
+ * @param {string} relativePath
+ * @returns {string|null}
+ */
+export function resolveEvaluationImageUrl(relativePath) {
+  if (!relativePath) return null;
+  if (relativePath.startsWith('http://') || relativePath.startsWith('https://')) {
+    return relativePath;
+  }
+  const cleanPath = relativePath.startsWith('/') ? relativePath : `/${relativePath}`;
+  return `${ML_BASE}${cleanPath}`;
+}
+
+/**
+ * Fetch AI Model Performance and Validation Evaluation Report from FastAPI backend.
+ * Tries GET /model/evaluation first, then falls back to /api/v1/model/evaluation.
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<Object>}
+ */
+export async function getModelEvaluation(signal) {
+  // 1. Try direct GET /model/evaluation
+  try {
+    const url = `${ML_BASE}/model/evaluation`;
+    const res = await fetch(url, {
+      headers: { 'Accept': 'application/json' },
+      signal
+    });
+    if (res.ok) {
+      const json = await res.json();
+      console.log('[ML API] GET /model/evaluation OK');
+      return json;
+    }
+  } catch (err) {
+    if (err.name === 'AbortError') throw err;
+  }
+
+  // 2. Fallback to GET /api/v1/model/evaluation
+  return apiFetch('/model/evaluation', { signal });
+}
+
